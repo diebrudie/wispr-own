@@ -120,13 +120,19 @@ final class AppState: ObservableObject {
     }
 
     private func waitForPermissions() async {
+        var logged = false
         while !(Permissions.microphoneGranted && Permissions.accessibilityGranted) {
             phase = .needsPermissions(
                 mic: !Permissions.microphoneGranted,
                 accessibility: !Permissions.accessibilityGranted
             )
+            if !logged {
+                dlog("app: waiting for permissions (mic=\(Permissions.microphoneGranted), ax=\(Permissions.accessibilityGranted))")
+                logged = true
+            }
             try? await Task.sleep(for: .seconds(2))
         }
+        dlog("app: permissions granted")
     }
 
     // MARK: - Dictation flow

@@ -9,5 +9,7 @@ func dlog(_ message: String) {
     let f = DateFormatter()
     f.dateFormat = "HH:mm:ss.SSS"
     print("[\(f.string(from: Date()))] \(message)")
-    logger.info("\(message, privacy: .public)")
+    // .notice is the lowest level the unified log persists to disk —
+    // .info is memory-only, invisible to `log show` after the fact.
+    logger.notice("\(message, privacy: .public)")
 }
