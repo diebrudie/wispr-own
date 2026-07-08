@@ -66,6 +66,26 @@ final class AppState: ObservableObject {
     @Published var micUID: String {
         didSet { UserDefaults.standard.set(micUID, forKey: AudioDevices.defaultsKey) }
     }
+    @Published var appearance: AppearanceOption {
+        didSet {
+            UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
+            appearance.apply()
+        }
+    }
+    @Published var firstName: String {
+        didSet { UserDefaults.standard.set(firstName, forKey: "firstName") }
+    }
+    @Published var lastName: String {
+        didSet { UserDefaults.standard.set(lastName, forKey: "lastName") }
+    }
+
+    /// Name used in the Home greeting: Settings first name, falling back
+    /// to the macOS account's first name.
+    var greetingName: String {
+        let custom = firstName.trimmingCharacters(in: .whitespaces)
+        if !custom.isEmpty { return custom }
+        return NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
+    }
 
     private let hotkey = HotkeyListener()
     private let recorder = AudioRecorder()
@@ -89,6 +109,11 @@ final class AppState: ObservableObject {
         dictationLanguages = Set(stored)
         micUID = UserDefaults.standard.string(forKey: AudioDevices.defaultsKey) ?? ""
         transcriber.allowedLanguages = stored.sorted()
+        appearance = UserDefaults.standard.string(forKey: "appearance")
+            .flatMap(AppearanceOption.init(rawValue:)) ?? .system
+        firstName = UserDefaults.standard.string(forKey: "firstName") ?? ""
+        lastName = UserDefaults.standard.string(forKey: "lastName") ?? ""
+        appearance.apply()
 
         hotkey.onStart = { [weak self] in self?.startRecording() }
         hotkey.onStop = { [weak self] in self?.stopAndTranscribe() }

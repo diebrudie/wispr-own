@@ -5,14 +5,10 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var app: AppState
 
-    private var firstName: String {
-        NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Welcome back, \(firstName)")
+                Text("Welcome back, \(app.greetingName)")
                     .font(.largeTitle.weight(.semibold))
                 TranscriptList(app: app)
             }

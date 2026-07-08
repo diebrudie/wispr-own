@@ -30,12 +30,14 @@ struct SettingsOverlayView: View {
             .padding()
 
             Form {
+                profileSection
                 shortcutSection
                 microphoneSection
                 languagesSection
+                appearanceSection
                 generalSection
                 Section {
-                    LabeledContent("Version", value: "0.3.0")
+                    LabeledContent("Version", value: "0.3.1")
                     LabeledContent("Engine", value: "whisper large-v3-turbo · CoreML")
                 }
             }
@@ -44,6 +46,32 @@ struct SettingsOverlayView: View {
         .frame(width: 560, height: 620)
         .tint(Theme.accent)
         .onAppear { devices = AudioDevices.inputDevices() }
+    }
+
+    private var profileSection: some View {
+        Section {
+            TextField("First name", text: $app.firstName, prompt: Text(defaultFirstName))
+            TextField("Last name", text: $app.lastName)
+        } header: {
+            Text("Your Name")
+        } footer: {
+            Text("Used for the Home greeting. Empty first name falls back to your macOS account name.")
+        }
+    }
+
+    private var defaultFirstName: String {
+        NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
+    }
+
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $app.appearance) {
+                ForEach(AppearanceOption.allCases) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     private var shortcutSection: some View {
