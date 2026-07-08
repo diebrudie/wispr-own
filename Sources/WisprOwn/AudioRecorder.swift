@@ -9,6 +9,10 @@ final class AudioRecorder {
     /// Fired from the main queue when the 5-minute stuck-key cap is hit.
     var onAutoStop: () -> Void = {}
 
+    /// Live loudness (0…~1 RMS) per captured chunk, ~12×/s on the main
+    /// queue — drives the WisprOwn bar's waveform.
+    var onLevel: (Float) -> Void = { _ in }
+
     private let engine = AVAudioEngine()
     private let bufferQueue = DispatchQueue(label: "com.diebrudie.wisprown.audio")
     private var samples: [Float] = []
@@ -115,6 +119,8 @@ final class AudioRecorder {
         guard out.frameLength > 0, let channel = out.floatChannelData?[0] else { return }
 
         let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
+        let rms = sqrt(chunk.reduce(Float(0)) { $0 + $1 * $1 } / Float(max(1, chunk.count)))
+        DispatchQueue.main.async { [weak self] in self?.onLevel(rms) }
         bufferQueue.async { [weak self] in
             guard let self else { return }
             self.samples.append(contentsOf: chunk)

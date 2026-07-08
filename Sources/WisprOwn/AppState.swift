@@ -66,6 +66,11 @@ final class AppState: ObservableObject {
     @Published var micUID: String {
         didSet { UserDefaults.standard.set(micUID, forKey: AudioDevices.defaultsKey) }
     }
+    /// Rolling mic-loudness window (0…1) driving the WisprOwn bar waveform.
+    @Published var levelHistory: [Float] = Array(repeating: 0, count: 26)
+    @Published var showFlowBar: Bool {
+        didSet { UserDefaults.standard.set(showFlowBar, forKey: "showFlowBar") }
+    }
     @Published var appearance: AppearanceOption {
         didSet {
             UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
@@ -113,8 +118,10 @@ final class AppState: ObservableObject {
             .flatMap(AppearanceOption.init(rawValue:)) ?? .system
         firstName = UserDefaults.standard.string(forKey: "firstName") ?? ""
         lastName = UserDefaults.standard.string(forKey: "lastName") ?? ""
+        showFlowBar = UserDefaults.standard.object(forKey: "showFlowBar") as? Bool ?? true
         appearance.apply()
 
+        recorder.onLevel = { [weak self] level in self?.pushLevel(level) }
         hotkey.onStart = { [weak self] in self?.startRecording() }
         hotkey.onStop = { [weak self] in self?.stopAndTranscribe() }
         hotkey.onCancel = { [weak self] in self?.cancelRecording() }
@@ -193,10 +200,18 @@ final class AppState: ObservableObject {
 
     // MARK: - Dictation flow
 
+    /// Speech RMS is roughly 0.02–0.3; scale to a 0…1 bar height.
+    private func pushLevel(_ raw: Float) {
+        guard phase == .recording else { return }
+        levelHistory.removeFirst()
+        levelHistory.append(min(1, raw * 9))
+    }
+
     private func startRecording() {
         // .error is recoverable — the next dictation attempt clears it.
         guard phase == .idle || isError else { return }
         do {
+            levelHistory = Array(repeating: 0, count: levelHistory.count)
             try recorder.start()
             phase = .recording
             if playSounds { NSSound(named: "Pop")?.play() }

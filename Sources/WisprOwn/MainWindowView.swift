@@ -6,6 +6,7 @@ struct MainWindowView: View {
     @ObservedObject var app: AppState
     @State private var selection: Screen = .home
     @State private var showSettings = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     enum Screen: String, CaseIterable, Identifiable {
         case home, dictionary
@@ -27,7 +28,7 @@ struct MainWindowView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(alignment: .leading, spacing: 0) {
                 wordmark
                 List(Screen.allCases, selection: $selection) { screen in
@@ -43,11 +44,26 @@ struct MainWindowView: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
         } detail: {
-            switch selection {
-            case .home: HomeView(app: app)
-            case .dictionary: DictionaryView(app: app)
+            Group {
+                switch selection {
+                case .home: HomeView(app: app)
+                case .dictionary: DictionaryView(app: app)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        withAnimation {
+                            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                    }
+                    .help("Hide or show the sidebar")
+                }
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .tint(Theme.accent)
         .sheet(isPresented: $showSettings) {
             SettingsOverlayView(app: app)

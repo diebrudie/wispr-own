@@ -26,6 +26,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.rebuildMenu(for: phase)
             }
             .store(in: &cancellables)
+
+        setupFlowBar()
+        appState.$showFlowBar
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] show in
+                show ? self?.flowBarPanel?.orderFrontRegardless() : self?.flowBarPanel?.orderOut(nil)
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - WisprOwn bar (floating bottom panel)
+
+    private var flowBarPanel: NSPanel?
+
+    private func setupFlowBar() {
+        let panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = .statusBar
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.contentView = NSHostingView(rootView: FlowBarView(app: appState))
+        positionFlowBar(panel)
+        if appState.showFlowBar {
+            panel.orderFrontRegardless()
+        }
+        flowBarPanel = panel
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, let panel = self.flowBarPanel else { return }
+            self.positionFlowBar(panel)
+        }
+    }
+
+    private func positionFlowBar(_ panel: NSPanel) {
+        guard let screen = NSScreen.main else { return }
+        let size = NSSize(width: 220, height: 46)
+        panel.setFrame(NSRect(
+            x: screen.frame.midX - size.width / 2,
+            y: screen.visibleFrame.minY + 4,
+            width: size.width,
+            height: size.height
+        ), display: true)
     }
 
     private func updateIcon(for phase: AppPhase) {

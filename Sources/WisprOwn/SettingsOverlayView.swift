@@ -1,13 +1,36 @@
 import ServiceManagement
 import SwiftUI
 
-/// Settings as a sheet overlay (Flow-style popup over the main window).
+/// Settings sheet with a Flow-style grouped layout: a small nav column
+/// (General / Profile / System) beside the active pane.
 struct SettingsOverlayView: View {
     @ObservedObject var app: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var pane: Pane = .general
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var devices: [AudioInputDevice] = []
+
+    enum Pane: String, CaseIterable, Identifiable {
+        case general, profile, system
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .general: return "General"
+            case .profile: return "Profile"
+            case .system: return "System"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .general: return "slider.horizontal.3"
+            case .profile: return "person.circle"
+            case .system: return "macwindow"
+            }
+        }
+    }
 
     /// Curated subset of Whisper's languages — the ones plausibly dictated.
     static let languageCatalog: [(code: String, name: String)] = [
@@ -19,62 +42,85 @@ struct SettingsOverlayView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Settings")
-                    .font(.title2.weight(.semibold))
-                Spacer()
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding()
-
-            Form {
-                profileSection
-                shortcutSection
-                microphoneSection
-                languagesSection
-                appearanceSection
-                generalSection
-                Section {
-                    LabeledContent("Version", value: "0.3.3")
-                    LabeledContent("Engine", value: "whisper large-v3-turbo · CoreML")
-                }
-            }
-            .formStyle(.grouped)
+        HStack(spacing: 0) {
+            navColumn
+            Divider()
+            detailColumn
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 780, height: 560)
         .tint(Theme.accent)
         .onAppear { devices = AudioDevices.inputDevices() }
     }
 
-    private var profileSection: some View {
-        Section {
-            TextField("First name", text: $app.firstName, prompt: Text(defaultFirstName))
-            TextField("Last name", text: $app.lastName)
-        } header: {
-            Text("Your Name")
-        } footer: {
-            Text("Used for the Home greeting. Empty first name falls back to your macOS account name.")
+    private var navColumn: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("SETTINGS")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .kerning(0.6)
+                .padding(.horizontal, 12)
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+
+            ForEach(Pane.allCases) { item in
+                Button {
+                    pane = item
+                } label: {
+                    Label(item.title, systemImage: item.icon)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(
+                            pane == item ? AnyShapeStyle(Theme.tintedFill) : AnyShapeStyle(.clear),
+                            in: RoundedRectangle(cornerRadius: 7)
+                        )
+                        .foregroundStyle(pane == item ? Theme.accent : .primary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8)
+            }
+
+            Spacer()
+
+            Text("WisprOwn v0.4.0 · whisper turbo")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(12)
         }
+        .frame(width: 190)
+        .background(Theme.windowBackground)
     }
 
-    private var defaultFirstName: String {
-        NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
-    }
+    private var detailColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(pane.title)
+                    .font(.largeTitle.weight(.semibold))
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding([.horizontal, .top], 22)
+            .padding(.bottom, 8)
 
-    private var appearanceSection: some View {
-        Section("Appearance") {
-            Picker("Theme", selection: $app.appearance) {
-                ForEach(AppearanceOption.allCases) { option in
-                    Text(option.displayName).tag(option)
+            Form {
+                switch pane {
+                case .general: generalPane
+                case .profile: profilePane
+                case .system: systemPane
                 }
             }
-            .pickerStyle(.segmented)
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
+        .background(Theme.cardBackground)
     }
 
-    private var shortcutSection: some View {
+    // MARK: - General (shortcut, microphone, languages)
+
+    @ViewBuilder
+    private var generalPane: some View {
         Section("Shortcut") {
             Picker("Push-to-talk key", selection: $app.hotkeyOption) {
                 ForEach(HotkeyOption.allCases) { option in
@@ -87,9 +133,7 @@ struct SettingsOverlayView: View {
                     .foregroundStyle(.orange)
             }
         }
-    }
 
-    private var microphoneSection: some View {
         Section("Microphone") {
             Picker("Input device", selection: $app.micUID) {
                 Text("System Default").tag("")
@@ -104,9 +148,7 @@ struct SettingsOverlayView: View {
                     .foregroundStyle(.orange)
             }
         }
-    }
 
-    private var languagesSection: some View {
         Section {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
                 ForEach(Self.languageCatalog, id: \.code) { language in
@@ -148,12 +190,39 @@ struct SettingsOverlayView: View {
         .buttonStyle(.plain)
     }
 
-    private var generalSection: some View {
-        Section("General") {
-            Toggle("Play sound when recording starts", isOn: Binding(
-                get: { app.playSounds },
-                set: { app.playSounds = $0 }
-            ))
+    // MARK: - Profile
+
+    @ViewBuilder
+    private var profilePane: some View {
+        Section {
+            TextField("First name", text: $app.firstName, prompt: Text(defaultFirstName))
+            TextField("Last name", text: $app.lastName)
+        } header: {
+            Text("Your Name")
+        } footer: {
+            Text("Used for the Home greeting. Empty first name falls back to your macOS account name.")
+        }
+    }
+
+    private var defaultFirstName: String {
+        NSFullUserName().split(separator: " ").first.map(String.init) ?? NSUserName()
+    }
+
+    // MARK: - System
+
+    @ViewBuilder
+    private var systemPane: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $app.appearance) {
+                ForEach(AppearanceOption.allCases) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+
+        Section("App settings") {
+            Toggle("Show WisprOwn bar at all times", isOn: $app.showFlowBar)
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, enable in
                     do {
@@ -171,6 +240,16 @@ struct SettingsOverlayView: View {
             if let loginError {
                 Text(loginError).font(.callout).foregroundStyle(.red)
             }
+        }
+
+        Section("Sound") {
+            Toggle("Play sound when recording starts", isOn: Binding(
+                get: { app.playSounds },
+                set: { app.playSounds = $0 }
+            ))
+        }
+
+        Section("Data") {
             LabeledContent("Data folder") {
                 Button("Reveal in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([ModelManager.supportDir])
