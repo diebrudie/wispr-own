@@ -24,16 +24,22 @@ enum Theme {
         dark: NSColor(red: 0.72, green: 0.64, blue: 0.97, alpha: 0.18)
     )
 
-    /// Detail-area background. Light: Flow's warm off-white.
+    /// Detail-area background. Light: Flow's warm cream page.
     static let windowBackground = dynamic(
-        light: NSColor(red: 0.984, green: 0.980, blue: 0.968, alpha: 1),
+        light: NSColor(red: 0.953, green: 0.945, blue: 0.925, alpha: 1),
         dark: NSColor(red: 0.106, green: 0.106, blue: 0.114, alpha: 1)
     )
 
-    /// Cards (lists, stats, search). Light: slightly deeper cream.
+    /// Cards float on the page: near-white on cream (Flow-style), lifted gray on dark.
     static let cardBackground = dynamic(
-        light: NSColor(red: 0.953, green: 0.945, blue: 0.925, alpha: 1),
+        light: NSColor(red: 0.998, green: 0.996, blue: 0.99, alpha: 1),
         dark: NSColor(red: 0.153, green: 0.153, blue: 0.165, alpha: 1)
+    )
+
+    /// Row highlight while hovering.
+    static let rowHover = dynamic(
+        light: NSColor(white: 0, alpha: 0.045),
+        dark: NSColor(white: 1, alpha: 0.055)
     )
 
     /// Hairline separators/borders that read on both surfaces.

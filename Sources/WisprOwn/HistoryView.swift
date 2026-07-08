@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Reusable transcript list: search bar + day-grouped rows with a
-/// reserved hover-action area (copy + ⋯ menu with Edit/Delete).
+/// Flow-style transcript list: day headers and the search loop live
+/// OUTSIDE the rounded cards; each day's rows sit inside their own card;
+/// rows highlight on hover.
 struct TranscriptList: View {
     @ObservedObject var app: AppState
     @State private var copiedId: Int64?
     @State private var editing: Transcript?
+    @State private var searchOpen = false
+    @FocusState private var searchFocused: Bool
 
     private var groups: [(day: String, items: [Transcript])] {
         var order: [String] = []
@@ -19,16 +22,22 @@ struct TranscriptList: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            searchBar
-            Divider()
-            if app.recentTranscripts.isEmpty {
-                emptyState
-            } else {
-                list
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                if groups.isEmpty {
+                    header(label: "Today", showsSearch: true)
+                    emptyState
+                } else {
+                    ForEach(Array(groups.enumerated()), id: \.element.day) { index, group in
+                        VStack(alignment: .leading, spacing: 10) {
+                            header(label: group.day, showsSearch: index == 0)
+                            card(group.items)
+                        }
+                    }
+                }
             }
+            .padding(.bottom, 8)
         }
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         .onAppear { app.refreshRecent() }
         .sheet(item: $editing) { transcript in
             EditTranscriptSheet(transcript: transcript) { newText in
@@ -37,21 +46,72 @@ struct TranscriptList: View {
         }
     }
 
-    private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search all dictations…", text: $app.searchQuery)
-                .textFieldStyle(.plain)
-            if !app.searchQuery.isEmpty {
+    /// "TODAY"-style label left, search loop right — both outside the card.
+    private func header(label: String, showsSearch: Bool) -> some View {
+        HStack {
+            Text(label.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .kerning(0.6)
+            Spacer()
+            if showsSearch {
+                searchControl
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private var searchControl: some View {
+        if searchOpen || !app.searchQuery.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search all dictations…", text: $app.searchQuery)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .frame(width: 200)
                 Button {
                     app.searchQuery = ""
+                    searchOpen = false
                 } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Theme.cardBackground, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.border))
+        } else {
+            Button {
+                searchOpen = true
+                searchFocused = true
+            } label: {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Search all dictations")
         }
-        .padding(10)
+    }
+
+    private func card(_ items: [Transcript]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, transcript in
+                HistoryRow(
+                    transcript: transcript,
+                    copied: copiedId == transcript.id,
+                    onCopy: { copy(transcript) },
+                    onEdit: { editing = transcript },
+                    onDelete: { app.deleteTranscript(transcript) }
+                )
+                if index < items.count - 1 {
+                    Divider().padding(.horizontal, 16)
+                }
+            }
+        }
+        .background(Theme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
     }
 
     private var emptyState: some View {
@@ -62,32 +122,9 @@ struct TranscriptList: View {
                 ? "Hold \(HotkeyOption.current.displayName) and speak — transcripts land here."
                 : "No dictation contains “\(app.searchQuery)”.")
         )
-        .frame(maxHeight: .infinity)
-    }
-
-    private var list: some View {
-        List {
-            ForEach(groups, id: \.day) { group in
-                Section {
-                    ForEach(group.items) { transcript in
-                        HistoryRow(
-                            transcript: transcript,
-                            copied: copiedId == transcript.id,
-                            onCopy: { copy(transcript) },
-                            onEdit: { editing = transcript },
-                            onDelete: { app.deleteTranscript(transcript) }
-                        )
-                    }
-                } header: {
-                    Text(group.day)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                }
-            }
-        }
-        .listStyle(.inset)
-        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, minHeight: 240)
+        .background(Theme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private func copy(_ transcript: Transcript) {
@@ -172,8 +209,11 @@ struct HistoryRow: View {
             .frame(width: 60, alignment: .trailing)
             .opacity(hovering || copied ? 1 : 0)
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .contentShape(Rectangle())
+        .background(hovering ? Theme.rowHover : Color.clear)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Copy", action: onCopy)
