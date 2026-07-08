@@ -30,8 +30,10 @@ open dist/WisprOwn.app   # if blocked: right-click the app in Finder > Open
 2. **Accessibility** — a prompt points you to
    *System Settings → Privacy & Security → Accessibility*. Enable **WisprOwn**,
    then quit and reopen the app (macOS only applies this grant on restart).
-3. **Model download** — the menu bar icon shows progress (~1.75 GB total, one time:
-   the main model plus a small language-detection model).
+3. **Model download** — the menu bar icon shows progress (~2.9 GB total, one time:
+   main model, a small language-detection model, and a CoreML encoder that makes
+   transcription ~4× faster on the Neural Engine). The very first dictation load
+   takes ~1 minute extra while macOS compiles the CoreML model; after that it's cached.
 4. When the icon becomes a plain microphone, you're ready: focus any text field,
    **hold Left Option**, speak, release.
 

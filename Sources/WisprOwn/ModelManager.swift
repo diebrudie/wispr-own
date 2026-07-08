@@ -20,6 +20,14 @@ final class ModelManager: NSObject {
         "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!
     static let detectMinimumBytes: Int64 = 140_000_000
 
+    /// CoreML encoder — whisper.cpp auto-loads it when the .mlmodelc sits
+    /// next to the .bin. Runs on the Neural Engine: measured 3 s → ~0.8 s
+    /// per dictation on an M3. Optional: Metal fallback works without it.
+    static let encoderDirName = "ggml-large-v3-turbo-encoder.mlmodelc"
+    static let encoderZipURL = URL(string:
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip")!
+    static let encoderZipMinimumBytes: Int64 = 1_000_000_000
+
     static var supportDir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("WisprOwn")
@@ -50,6 +58,36 @@ final class ModelManager: NSObject {
                          minBytes: Self.detectMinimumBytes, label: "~150 MB")
         try await ensure(url: Self.modelURL, at: Self.modelPath,
                          minBytes: Self.minimumBytes, label: "~1.6 GB")
+        await ensureCoreMLEncoder()
+    }
+
+    /// Best-effort: transcription works without it (Metal fallback), so a
+    /// failed download logs and moves on instead of blocking startup.
+    private func ensureCoreMLEncoder() async {
+        let encoderDir = Self.modelPath.deletingLastPathComponent()
+            .appendingPathComponent(Self.encoderDirName)
+        guard !FileManager.default.fileExists(atPath: encoderDir.path) else { return }
+        let zipPath = Self.supportDir.appendingPathComponent("models/encoder.zip")
+        do {
+            try await ensure(url: Self.encoderZipURL, at: zipPath,
+                             minBytes: Self.encoderZipMinimumBytes, label: "~1.2 GB, CoreML encoder")
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            unzip.arguments = ["-xk", zipPath.path, zipPath.deletingLastPathComponent().path]
+            try unzip.run()
+            unzip.waitUntilExit()
+            guard unzip.terminationStatus == 0,
+                  FileManager.default.fileExists(atPath: encoderDir.path) else {
+                throw URLError(.cannotParseResponse)
+            }
+            dlog("model: CoreML encoder installed (first load compiles it, ~1 min)")
+        } catch {
+            dlog("model: CoreML encoder unavailable (\(error.localizedDescription)) — using Metal fallback")
+        }
+        try? FileManager.default.removeItem(at: zipPath)
+        try? FileManager.default.removeItem(at: zipPath.appendingPathExtension("sha256"))
+        try? FileManager.default.removeItem(
+            at: zipPath.deletingLastPathComponent().appendingPathComponent("__MACOSX"))
     }
 
     /// Checksum is trust-on-first-use: pinned after the first download,

@@ -94,4 +94,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openMicSettings() { Permissions.openMicrophoneSettings() }
     @objc private func openAxSettings() { Permissions.openAccessibilitySettings() }
     @objc private func quit() { NSApp.terminate(nil) }
+
+    /// Dock icon click (and app reactivation) opens the History window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        openHistory()
+        return true
+    }
 }
