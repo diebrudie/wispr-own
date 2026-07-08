@@ -47,10 +47,15 @@ Your audio is processed in memory and never written to disk or network.
 ```sh
 git clone git@github.com:diebrudie/wispr-own.git   # or: gh repo clone diebrudie/wispr-own
 cd wispr-own
-./Scripts/make-signing-cert.sh   # one-time: stable signing identity (approve the dialogs)
+./Scripts/make-signing-cert.sh   # one-time: stable signing identity (enter your login password)
 make app
 open dist/WisprOwn.app           # if Gatekeeper complains: right-click the app → Open
 ```
+
+> **Don't skip the first command.** It creates a local self-signed certificate so
+> every future rebuild keeps its Microphone and Accessibility permissions. Without
+> it, macOS treats each rebuild as a brand-new app and you must re-grant access
+> every single time. Later, use `make reload` to rebuild and relaunch in one step.
 
 > **No accounts, no API keys.** Everything runs on-device. The only network
 > activity is the one-time model download from Hugging Face (public files,
@@ -104,6 +109,7 @@ folder to reset the app completely.
 | **No menu bar icon** | A crowded menu bar (especially next to a MacBook notch) hides new items. Remove some icons, or just use the Dock icon — WisprOwn also appears in ⌘Tab. |
 | **"Nothing opened" after `open dist/WisprOwn.app`** | It did — there's no main window. Look for the mic in the menu bar and the violet icon in the Dock (click it for History). |
 | **Hotkey stopped working after rebuilding** | You skipped `make-signing-cert.sh`, so the rebuild changed the app's identity and macOS dropped the Accessibility grant. Remove and re-add WisprOwn under System Settings → Privacy & Security → Accessibility, then create the cert so it never happens again. |
+| **`codesign wants to access key "key"` prompt** | Enter your **Mac login password** and click **Always Allow** (not plain Allow) — it won't ask again. |
 | **Gatekeeper refuses to open the app** | The build is self-signed, not notarized. Right-click the app in Finder → Open (needed once). |
 | **Dictation pastes nothing** | Check the History window — if the text is there, the target field rejected synthetic ⌘V; copy it manually. If it's not there, the recording was empty/too short. |
 

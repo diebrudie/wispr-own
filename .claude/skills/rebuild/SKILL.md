@@ -8,7 +8,8 @@ description: Rebuild WisprOwn.app, replace the running instance, relaunch it, an
 Run the full build-replace-verify cycle for `dist/WisprOwn.app`:
 
 1. **Check the signing identity first**: `security find-identity -v -p codesigning | grep -c "WisprOwn Dev"`.
-   - If it is missing, WARN the user before proceeding: the rebuild will be ad-hoc signed, macOS will drop the Accessibility grant, and they will have to remove/re-add WisprOwn in System Settings → Privacy & Security → Accessibility afterwards. Recommend running `./Scripts/make-signing-cert.sh` first (they must run it themselves — it touches the keychain).
+   - Normally present (created 2026-07-08) → rebuilds keep their Accessibility/Microphone grants; proceed.
+   - If it is ever missing, tell the user before proceeding: the rebuild will be ad-hoc signed, macOS will drop the Accessibility grant, and they will have to remove/re-add WisprOwn in System Settings → Privacy & Security → Accessibility. Ask them whether to run `./Scripts/make-signing-cert.sh` to recreate it (it modifies the login keychain, so it needs their explicit go-ahead).
 2. Build and relaunch: `make reload` (equivalent to `make app && pkill -f 'WisprOwn.app/Contents/MacOS/WisprOwn' && open dist/WisprOwn.app`).
 3. Wait ~8 seconds, then verify from logs (NOTE: use `/usr/bin/log`, not `log` — zsh shadows it with a builtin):
    `/usr/bin/log show --process WisprOwn --last 1m --style compact | grep -E 'app:|ui:|hotkey:'`
