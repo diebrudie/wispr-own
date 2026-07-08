@@ -1,0 +1,10 @@
+.build/
+Vendor/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+dist/
+*.bin
+*.wav
+.DS_Store

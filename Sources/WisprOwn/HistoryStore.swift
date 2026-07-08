@@ -1,0 +1,140 @@
+import Foundation
+import SQLite3
+
+struct Transcript: Identifiable, Equatable {
+    let id: Int64
+    let createdAt: String
+    let text: String
+    let language: String?
+    let audioDurationMs: Int?
+    let transcribeMs: Int?
+    let targetApp: String?
+}
+
+/// Spec 05 — SQLite-backed history. Zero-loss rule: `insert` is called
+/// BEFORE any paste attempt. All access goes through one serial queue.
+final class HistoryStore {
+    private var db: OpaquePointer?
+    private let queue = DispatchQueue(label: "com.diebrudie.wisprown.history")
+    private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
+    static var dbPath: URL { ModelManager.supportDir.appendingPathComponent("history.sqlite") }
+
+    init() throws {
+        try FileManager.default.createDirectory(at: ModelManager.supportDir, withIntermediateDirectories: true)
+        guard sqlite3_open(Self.dbPath.path, &db) == SQLITE_OK else {
+            throw NSError(domain: "WisprOwn", code: 20, userInfo: [
+                NSLocalizedDescriptionKey: "Cannot open history database",
+            ])
+        }
+        exec("PRAGMA journal_mode=WAL")
+        exec("""
+            CREATE TABLE IF NOT EXISTS transcripts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              text TEXT NOT NULL,
+              language TEXT,
+              audio_duration_ms INTEGER,
+              transcribe_ms INTEGER,
+              target_app TEXT
+            )
+            """)
+    }
+
+    @discardableResult
+    func insert(text: String, language: String?, audioDurationMs: Int?,
+                transcribeMs: Int?, targetApp: String?) -> Int64 {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, """
+                INSERT INTO transcripts
+                  (created_at, text, language, audio_duration_ms, transcribe_ms, target_app)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, -1, &stmt, nil) == SQLITE_OK else { return -1 }
+
+            sqlite3_bind_text(stmt, 1, Self.timestamp(), -1, Self.transient)
+            sqlite3_bind_text(stmt, 2, text, -1, Self.transient)
+            bind(stmt, 3, language)
+            bind(stmt, 4, audioDurationMs)
+            bind(stmt, 5, transcribeMs)
+            bind(stmt, 6, targetApp)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                dlog("history: INSERT failed: \(String(cString: sqlite3_errmsg(db)))")
+                return -1
+            }
+            return sqlite3_last_insert_rowid(db)
+        }
+    }
+
+    func recent(limit: Int = 20) -> [Transcript] {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, """
+                SELECT id, created_at, text, language, audio_duration_ms, transcribe_ms, target_app
+                FROM transcripts ORDER BY id DESC LIMIT ?
+                """, -1, &stmt, nil) == SQLITE_OK else { return [] }
+            sqlite3_bind_int(stmt, 1, Int32(limit))
+
+            var rows: [Transcript] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                rows.append(Transcript(
+                    id: sqlite3_column_int64(stmt, 0),
+                    createdAt: String(cString: sqlite3_column_text(stmt, 1)),
+                    text: String(cString: sqlite3_column_text(stmt, 2)),
+                    language: column(stmt, 3),
+                    audioDurationMs: columnInt(stmt, 4),
+                    transcribeMs: columnInt(stmt, 5),
+                    targetApp: column(stmt, 6)
+                ))
+            }
+            return rows
+        }
+    }
+
+    /// ISO 8601 with local offset, e.g. 2026-07-08T09:14:03+02:00
+    static func timestamp() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        return f.string(from: Date())
+    }
+
+    private func exec(_ sql: String) {
+        if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
+            dlog("history: exec failed (\(sql.prefix(30))…): \(String(cString: sqlite3_errmsg(db)))")
+        }
+    }
+
+    private func bind(_ stmt: OpaquePointer?, _ index: Int32, _ value: String?) {
+        if let value {
+            sqlite3_bind_text(stmt, index, value, -1, Self.transient)
+        } else {
+            sqlite3_bind_null(stmt, index)
+        }
+    }
+
+    private func bind(_ stmt: OpaquePointer?, _ index: Int32, _ value: Int?) {
+        if let value {
+            sqlite3_bind_int64(stmt, index, Int64(value))
+        } else {
+            sqlite3_bind_null(stmt, index)
+        }
+    }
+
+    private func column(_ stmt: OpaquePointer?, _ index: Int32) -> String? {
+        sqlite3_column_type(stmt, index) == SQLITE_NULL
+            ? nil : String(cString: sqlite3_column_text(stmt, index))
+    }
+
+    private func columnInt(_ stmt: OpaquePointer?, _ index: Int32) -> Int? {
+        sqlite3_column_type(stmt, index) == SQLITE_NULL
+            ? nil : Int(sqlite3_column_int64(stmt, index))
+    }
+
+    deinit {
+        sqlite3_close(db)
+    }
+}
