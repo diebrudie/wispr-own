@@ -41,6 +41,8 @@ enum AppPhase: Equatable {
 final class AppState: ObservableObject {
     @Published var phase: AppPhase = .startingUp
     @Published var recentTranscripts: [Transcript] = []
+    @Published var stats = HistoryStore.Stats()
+    @Published var dictionary: [HistoryStore.DictionaryEntry] = []
     @Published var searchQuery: String = "" {
         didSet { refreshRecent() }
     }
@@ -52,6 +54,17 @@ final class AppState: ObservableObject {
             // Re-publish so the menu status line picks up the new key name.
             if case .idle = phase { phase = .idle }
         }
+    }
+    @Published var dictationLanguages: Set<String> {
+        didSet {
+            // Never allow an empty set — that would break detection.
+            if dictationLanguages.isEmpty { dictationLanguages = ["en"] }
+            UserDefaults.standard.set(Array(dictationLanguages).sorted(), forKey: "dictationLanguages")
+            transcriber.allowedLanguages = Array(dictationLanguages).sorted()
+        }
+    }
+    @Published var micUID: String {
+        didSet { UserDefaults.standard.set(micUID, forKey: AudioDevices.defaultsKey) }
     }
 
     private let hotkey = HotkeyListener()
@@ -72,6 +85,11 @@ final class AppState: ObservableObject {
     }
 
     init() {
+        let stored = UserDefaults.standard.stringArray(forKey: "dictationLanguages") ?? ["en", "de", "es"]
+        dictationLanguages = Set(stored)
+        micUID = UserDefaults.standard.string(forKey: AudioDevices.defaultsKey) ?? ""
+        transcriber.allowedLanguages = stored.sorted()
+
         hotkey.onStart = { [weak self] in self?.startRecording() }
         hotkey.onStop = { [weak self] in self?.stopAndTranscribe() }
         hotkey.onCancel = { [weak self] in self?.cancelRecording() }
@@ -86,6 +104,7 @@ final class AppState: ObservableObject {
         do {
             history = try HistoryStore()
             refreshRecent()
+            refreshDictionary()
         } catch {
             phase = .error(error.localizedDescription)
             return
@@ -216,11 +235,40 @@ final class AppState: ObservableObject {
         recentTranscripts = q.isEmpty
             ? (history?.recent(limit: 20) ?? [])
             : (history?.search(q) ?? [])
+        stats = history?.stats() ?? HistoryStore.Stats()
     }
 
     func deleteTranscript(_ transcript: Transcript) {
         history?.delete(id: transcript.id)
         refreshRecent()
+    }
+
+    // MARK: - Dictionary
+
+    func refreshDictionary() {
+        dictionary = history?.dictionaryEntries() ?? []
+        transcriber.glossary = dictionary.map(\.phrase)
+    }
+
+    @discardableResult
+    func addDictionaryEntry(_ phrase: String) -> Bool {
+        let trimmed = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let added = history?.dictionaryAdd(trimmed) ?? false
+        refreshDictionary()
+        return added
+    }
+
+    func updateDictionaryEntry(id: Int64, phrase: String) {
+        let trimmed = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        history?.dictionaryUpdate(id: id, phrase: trimmed)
+        refreshDictionary()
+    }
+
+    func deleteDictionaryEntry(id: Int64) {
+        history?.dictionaryDelete(id: id)
+        refreshDictionary()
     }
 
     func copyToClipboard(_ text: String) {

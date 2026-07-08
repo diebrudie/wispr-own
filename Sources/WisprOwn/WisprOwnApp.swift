@@ -3,10 +3,18 @@ import Cocoa
 @main
 enum Entry {
     static func main() {
-        // Headless verification path (eval gate G3): WisprOwn --transcribe <audio-file>
+        // Headless verification paths (eval gates): --transcribe / --devices / --stats
         if let index = CommandLine.arguments.firstIndex(of: "--transcribe"),
            CommandLine.arguments.count > index + 1 {
             TranscribeCLI.run(path: CommandLine.arguments[index + 1])
+            return
+        }
+        if CommandLine.arguments.contains("--devices") {
+            TranscribeCLI.listDevices()
+            return
+        }
+        if CommandLine.arguments.contains("--stats") {
+            TranscribeCLI.printStats()
             return
         }
         let app = NSApplication.shared

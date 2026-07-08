@@ -24,6 +24,7 @@ final class AudioRecorder {
         }
 
         let input = engine.inputNode
+        applyPreferredDevice(to: input)
         let inputFormat = input.inputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0 else {
             throw NSError(domain: "WisprOwn", code: 1, userInfo: [
@@ -68,6 +69,27 @@ final class AudioRecorder {
         _ = stop()
         bufferQueue.sync { samples.removeAll() }
         dlog("audio: canceled, buffer discarded")
+    }
+
+    /// Points the engine's input AUHAL at the user-chosen microphone.
+    /// No stored UID (or a vanished device) means system default.
+    private func applyPreferredDevice(to input: AVAudioInputNode) {
+        guard let uid = UserDefaults.standard.string(forKey: AudioDevices.defaultsKey),
+              !uid.isEmpty else { return }
+        guard let device = AudioDevices.device(withUID: uid) else {
+            dlog("audio: preferred mic '\(uid)' not connected, using system default")
+            return
+        }
+        guard let unit = input.audioUnit else { return }
+        var deviceId = device.id
+        let status = AudioUnitSetProperty(
+            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global,
+            0, &deviceId, UInt32(MemoryLayout<AudioDeviceID>.size))
+        if status == noErr {
+            dlog("audio: using mic '\(device.name)'")
+        } else {
+            dlog("audio: failed to select mic '\(device.name)' (\(status)), using default")
+        }
     }
 
     private func append(buffer: AVAudioPCMBuffer, targetFormat: AVAudioFormat, ratio: Double) {

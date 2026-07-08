@@ -8,7 +8,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState!
     private var statusItem: NSStatusItem!
-    private var historyWindow: NSWindow?
+    private var mainWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -52,8 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(item("History…", #selector(openHistory), key: "h"))
-        menu.addItem(item("Settings…", #selector(openSettings), key: ","))
+        menu.addItem(item("Open WisprOwn…", #selector(openMainWindow), key: "o"))
         menu.addItem(.separator())
         menu.addItem(item("Quit WisprOwn", #selector(quit), key: "q"))
 
@@ -66,35 +65,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
 
-    @objc private func openHistory() {
+    @objc private func openMainWindow() {
         appState.refreshRecent()
-        if historyWindow == nil {
-            let hosting = NSHostingController(rootView: HistoryView(app: appState))
+        if mainWindow == nil {
+            let hosting = NSHostingController(rootView: MainWindowView(app: appState))
             let window = NSWindow(contentViewController: hosting)
-            window.title = "WisprOwn History"
-            window.styleMask = [.titled, .closable, .resizable]
-            window.setContentSize(NSSize(width: 560, height: 480))
+            window.title = "WisprOwn"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 960, height: 620))
             window.isReleasedWhenClosed = false
             window.center()
-            historyWindow = window
+            mainWindow = window
         }
-        historyWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private var settingsWindow: NSWindow?
-
-    @objc private func openSettings() {
-        if settingsWindow == nil {
-            let hosting = NSHostingController(rootView: SettingsView(app: appState))
-            let window = NSWindow(contentViewController: hosting)
-            window.title = "WisprOwn Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
-        }
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -102,9 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openAxSettings() { Permissions.openAccessibilitySettings() }
     @objc private func quit() { NSApp.terminate(nil) }
 
-    /// Dock icon click (and app reactivation) opens the History window.
+    /// Dock icon click (and app reactivation) opens the main window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        openHistory()
+        openMainWindow()
         return true
     }
 }

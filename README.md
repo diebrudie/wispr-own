@@ -34,7 +34,9 @@ Your audio is processed in memory and never written to disk or network.
 | 🌍 | **Multilingual** | English, German, Spanish — auto-detected per dictation |
 | ⚡ | **Fast** | ~1 s from key-release to paste on Apple Silicon (M3 measured) |
 | 🧾 | **Nothing gets lost** | Every transcript is saved to a local SQLite history *before* pasting |
-| 🖥️ | **History window** | Click the Dock icon — last 20 dictations, one-click copy |
+| 🖥️ | **Hub window** | Click the Dock icon — stats (words, WPM, streak), searchable history, one-click copy |
+| 📖 | **Dictionary** | Add your names & jargon — they bias the transcriber and come out spelled right |
+| 🎛️ | **Configurable** | Push-to-talk key, microphone, and dictation languages — all in Settings |
 | 📋 | **Clipboard-safe** | Whatever you had copied is restored ~1 s after each paste |
 
 ## Install
@@ -126,13 +128,18 @@ The project is spec-driven: every component has a one-page spec in
 | [05](specs/05-history-store.md) | Zero-loss SQLite history |
 | [06](specs/06-menubar-and-history-ui.md) | Menu bar + history window |
 | [07](specs/07-packaging.md) | Bundling & distribution |
+| [09](specs/09-main-window.md) | Main hub window (Home, Settings overlay) |
+| [10](specs/10-dictionary.md) | Dictionary / custom vocabulary |
 
 ## Roadmap
 
+- [x] Configurable hotkey in the UI (Fn/Globe support) — v0.3
+- [x] Search in history — v0.3
+- [x] Custom vocabulary (Dictionary) — v0.3
 - [ ] Streaming transcription (encode while speaking → near-instant paste)
-- [ ] Configurable hotkey in the UI (Fn/Globe support)
-- [ ] Search in history
-- [ ] Custom vocabulary hints
+- [ ] Insights page (usage charts, streak heatmap)
+- [ ] UI localization (DE/ES)
+- [ ] Dictionary auto-suggestions
 
 ## License
 

@@ -39,6 +39,74 @@ final class HistoryStore {
               target_app TEXT
             )
             """)
+        exec("""
+            CREATE TABLE IF NOT EXISTS dictionary (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              phrase TEXT NOT NULL UNIQUE,
+              created_at TEXT NOT NULL
+            )
+            """)
+    }
+
+    // MARK: - Dictionary (Spec 10)
+
+    struct DictionaryEntry: Identifiable, Equatable {
+        let id: Int64
+        var phrase: String
+    }
+
+    func dictionaryEntries() -> [DictionaryEntry] {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "SELECT id, phrase FROM dictionary ORDER BY phrase COLLATE NOCASE",
+                                     -1, &stmt, nil) == SQLITE_OK else { return [] }
+            var rows: [DictionaryEntry] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                rows.append(DictionaryEntry(
+                    id: sqlite3_column_int64(stmt, 0),
+                    phrase: String(cString: sqlite3_column_text(stmt, 1))
+                ))
+            }
+            return rows
+        }
+    }
+
+    /// Returns false when the phrase already exists (UNIQUE constraint).
+    @discardableResult
+    func dictionaryAdd(_ phrase: String) -> Bool {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "INSERT OR IGNORE INTO dictionary (phrase, created_at) VALUES (?, ?)",
+                                     -1, &stmt, nil) == SQLITE_OK else { return false }
+            sqlite3_bind_text(stmt, 1, phrase, -1, Self.transient)
+            sqlite3_bind_text(stmt, 2, Self.timestamp(), -1, Self.transient)
+            return sqlite3_step(stmt) == SQLITE_DONE && sqlite3_changes(db) > 0
+        }
+    }
+
+    func dictionaryUpdate(id: Int64, phrase: String) {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "UPDATE OR IGNORE dictionary SET phrase = ? WHERE id = ?",
+                                     -1, &stmt, nil) == SQLITE_OK else { return }
+            sqlite3_bind_text(stmt, 1, phrase, -1, Self.transient)
+            sqlite3_bind_int64(stmt, 2, id)
+            sqlite3_step(stmt)
+        }
+    }
+
+    func dictionaryDelete(id: Int64) {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "DELETE FROM dictionary WHERE id = ?",
+                                     -1, &stmt, nil) == SQLITE_OK else { return }
+            sqlite3_bind_int64(stmt, 1, id)
+            sqlite3_step(stmt)
+        }
     }
 
     @discardableResult
@@ -86,6 +154,49 @@ final class HistoryStore {
             sqlite3_bind_text(stmt, 1, "%\(query)%", -1, Self.transient)
             sqlite3_bind_int(stmt, 2, Int32(limit))
         }
+    }
+
+    struct Stats {
+        var totalWords = 0
+        var wordsPerMinute = 0
+        var dayStreak = 0
+    }
+
+    /// One pass over all rows: total words, average WPM (spoken time only),
+    /// and consecutive-day streak ending today (or yesterday if today is empty).
+    func stats() -> Stats {
+        var totalWords = 0
+        var totalSpokenMs = 0
+        var days = Set<String>()
+
+        let rows = fetch(sql: """
+            SELECT id, created_at, text, language, audio_duration_ms, transcribe_ms, target_app
+            FROM transcripts
+            """) { _ in }
+        for row in rows {
+            totalWords += row.text.split(whereSeparator: \.isWhitespace).count
+            totalSpokenMs += row.audioDurationMs ?? 0
+            days.insert(String(row.createdAt.prefix(10))) // yyyy-MM-dd, local time
+        }
+
+        var stats = Stats(totalWords: totalWords)
+        if totalSpokenMs > 0 {
+            stats.wordsPerMinute = Int((Double(totalWords) / (Double(totalSpokenMs) / 60_000)).rounded())
+        }
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        var cursor = Date()
+        // A streak may still be alive if today has no dictation yet.
+        if !days.contains(dayFormatter.string(from: cursor)) {
+            cursor = Calendar.current.date(byAdding: .day, value: -1, to: cursor)!
+        }
+        while days.contains(dayFormatter.string(from: cursor)) {
+            stats.dayStreak += 1
+            cursor = Calendar.current.date(byAdding: .day, value: -1, to: cursor)!
+        }
+        return stats
     }
 
     func delete(id: Int64) {

@@ -4,6 +4,26 @@ import Foundation
 /// Headless pipeline check: `WisprOwn --transcribe <audio-file>`.
 /// Loads the model, transcribes one file, prints the result, exits.
 enum TranscribeCLI {
+    /// `WisprOwn --devices` — list input devices (mic-picker verification).
+    static func listDevices() {
+        setvbuf(stdout, nil, _IONBF, 0)
+        for device in AudioDevices.inputDevices() {
+            print("\(device.id)\t\(device.uid)\t\(device.name)")
+        }
+        _exit(0)
+    }
+
+    /// `WisprOwn --stats` — print Home-screen stats (verification against SQL).
+    static func printStats() {
+        setvbuf(stdout, nil, _IONBF, 0)
+        guard let store = try? HistoryStore() else { _exit(1) }
+        let stats = store.stats()
+        print("totalWords: \(stats.totalWords)")
+        print("wpm: \(stats.wordsPerMinute)")
+        print("dayStreak: \(stats.dayStreak)")
+        _exit(0)
+    }
+
     static func run(path: String) {
         // Unbuffered stdout: we exit via _exit(), which skips stream flushing.
         setvbuf(stdout, nil, _IONBF, 0)
@@ -24,6 +44,16 @@ enum TranscribeCLI {
                 modelPath: ModelManager.modelPath.path,
                 detectModelPath: ModelManager.detectModelPath.path
             )
+            // Mirror the app pipeline: dictionary bias + language constraint.
+            if let store = try? HistoryStore() {
+                transcriber.glossary = store.dictionaryEntries().map(\.phrase)
+                if !transcriber.glossary.isEmpty {
+                    print("glossary: \(transcriber.glossary.joined(separator: ", "))")
+                }
+            }
+            if let langs = UserDefaults.standard.stringArray(forKey: "dictationLanguages") {
+                transcriber.allowedLanguages = langs.sorted()
+            }
             guard let cold = transcriber.transcribe(samples: samples) else {
                 print("error: transcription failed")
                 _exit(1)

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Spec 06 (amended 2026-07-08) — searchable history grouped by day,
-/// modeled on the Wispr Flow layout: time column, text, per-row actions.
-struct HistoryView: View {
+/// Reusable transcript list: search bar + day-grouped rows with copy/delete.
+/// Embedded in HomeView; kept standalone so future screens can reuse it.
+struct TranscriptList: View {
     @ObservedObject var app: AppState
     @State private var copiedId: Int64?
 
@@ -27,7 +27,7 @@ struct HistoryView: View {
                 list
             }
         }
-        .frame(minWidth: 480, minHeight: 360)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
         .onAppear { app.refreshRecent() }
     }
 
@@ -80,6 +80,7 @@ struct HistoryView: View {
             }
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
     }
 
     private func copy(_ transcript: Transcript) {
@@ -107,7 +108,7 @@ struct HistoryView: View {
     }
 }
 
-private struct HistoryRow: View {
+struct HistoryRow: View {
     let transcript: Transcript
     let copied: Bool
     let onCopy: () -> Void
@@ -131,8 +132,8 @@ private struct HistoryRow: View {
                         .font(.caption2.weight(.bold))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(.quaternary, in: Capsule())
-                        .foregroundStyle(.secondary)
+                        .background(Theme.tintedFill, in: Capsule())
+                        .foregroundStyle(Theme.accent)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -166,7 +167,7 @@ private struct HistoryRow: View {
     }
 
     private var time: String {
-        guard let date = HistoryView.parseDate(transcript.createdAt) else { return "" }
+        guard let date = TranscriptList.parseDate(transcript.createdAt) else { return "" }
         let f = DateFormatter()
         f.dateFormat = "h:mm a"
         return f.string(from: date).lowercased()
