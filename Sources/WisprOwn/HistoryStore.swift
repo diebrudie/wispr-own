@@ -69,14 +69,42 @@ final class HistoryStore {
     }
 
     func recent(limit: Int = 20) -> [Transcript] {
+        fetch(sql: """
+            SELECT id, created_at, text, language, audio_duration_ms, transcribe_ms, target_app
+            FROM transcripts ORDER BY id DESC LIMIT ?
+            """) { stmt in
+            sqlite3_bind_int(stmt, 1, Int32(limit))
+        }
+    }
+
+    /// Case-insensitive substring search across all history.
+    func search(_ query: String, limit: Int = 50) -> [Transcript] {
+        fetch(sql: """
+            SELECT id, created_at, text, language, audio_duration_ms, transcribe_ms, target_app
+            FROM transcripts WHERE text LIKE ? ORDER BY id DESC LIMIT ?
+            """) { stmt in
+            sqlite3_bind_text(stmt, 1, "%\(query)%", -1, Self.transient)
+            sqlite3_bind_int(stmt, 2, Int32(limit))
+        }
+    }
+
+    func delete(id: Int64) {
         queue.sync {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
-            guard sqlite3_prepare_v2(db, """
-                SELECT id, created_at, text, language, audio_duration_ms, transcribe_ms, target_app
-                FROM transcripts ORDER BY id DESC LIMIT ?
-                """, -1, &stmt, nil) == SQLITE_OK else { return [] }
-            sqlite3_bind_int(stmt, 1, Int32(limit))
+            guard sqlite3_prepare_v2(db, "DELETE FROM transcripts WHERE id = ?",
+                                     -1, &stmt, nil) == SQLITE_OK else { return }
+            sqlite3_bind_int64(stmt, 1, id)
+            sqlite3_step(stmt)
+        }
+    }
+
+    private func fetch(sql: String, bind: (OpaquePointer?) -> Void) -> [Transcript] {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+            bind(stmt)
 
             var rows: [Transcript] = []
             while sqlite3_step(stmt) == SQLITE_ROW {

@@ -53,11 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
         menu.addItem(item("History…", #selector(openHistory), key: "h"))
-
-        let sounds = item("Play Sounds", #selector(toggleSounds))
-        sounds.state = appState.playSounds ? .on : .off
-        menu.addItem(sounds)
-
+        menu.addItem(item("Settings…", #selector(openSettings), key: ","))
         menu.addItem(.separator())
         menu.addItem(item("Quit WisprOwn", #selector(quit), key: "q"))
 
@@ -86,9 +82,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func toggleSounds() {
-        appState.playSounds.toggle()
-        rebuildMenu(for: appState.phase)
+    private var settingsWindow: NSWindow?
+
+    @objc private func openSettings() {
+        if settingsWindow == nil {
+            let hosting = NSHostingController(rootView: SettingsView(app: appState))
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "WisprOwn Settings"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func openMicSettings() { Permissions.openMicrophoneSettings() }

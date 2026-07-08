@@ -29,7 +29,7 @@ enum AppPhase: Equatable {
         case .needsPermissions: return "Permissions needed"
         case .downloadingModel(let p): return "Downloading model… \(Int(p * 100))%"
         case .loadingModel: return "Loading model…"
-        case .idle: return "Ready — hold Left Option to dictate"
+        case .idle: return "Ready — hold \(HotkeyOption.current.displayName) to dictate"
         case .recording: return "Recording…"
         case .transcribing: return "Transcribing…"
         case .error(let message): return "Error: \(message)"
@@ -41,6 +41,18 @@ enum AppPhase: Equatable {
 final class AppState: ObservableObject {
     @Published var phase: AppPhase = .startingUp
     @Published var recentTranscripts: [Transcript] = []
+    @Published var searchQuery: String = "" {
+        didSet { refreshRecent() }
+    }
+    @Published var hotkeyOption: HotkeyOption = .current {
+        didSet {
+            HotkeyOption.current = hotkeyOption
+            hotkey.option = hotkeyOption
+            dlog("app: hotkey switched to \(hotkeyOption.rawValue)")
+            // Re-publish so the menu status line picks up the new key name.
+            if case .idle = phase { phase = .idle }
+        }
+    }
 
     private let hotkey = HotkeyListener()
     private let recorder = AudioRecorder()
@@ -200,7 +212,15 @@ final class AppState: ObservableObject {
     }
 
     func refreshRecent() {
-        recentTranscripts = history?.recent(limit: 20) ?? []
+        let q = searchQuery.trimmingCharacters(in: .whitespaces)
+        recentTranscripts = q.isEmpty
+            ? (history?.recent(limit: 20) ?? [])
+            : (history?.search(q) ?? [])
+    }
+
+    func deleteTranscript(_ transcript: Transcript) {
+        history?.delete(id: transcript.id)
+        refreshRecent()
     }
 
     func copyToClipboard(_ text: String) {

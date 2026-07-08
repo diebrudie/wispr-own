@@ -12,9 +12,8 @@ final class HotkeyListener {
     var onStop: () -> Void = {}
     var onCancel: () -> Void = {}
 
-    /// Left Option. Kept as a variable so a future settings UI (or the planned
-    /// switch to Fn) is a one-line change. Right Option is 61.
-    var keyCode: Int64 = 58
+    /// Settable at runtime from the Settings window.
+    var option: HotkeyOption = .current
     let armDelay: TimeInterval = 0.3
 
     private enum State { case idle, arming, recording }
@@ -48,7 +47,7 @@ final class HotkeyListener {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        dlog("hotkey: listening (keyCode \(keyCode))")
+        dlog("hotkey: listening (\(option.rawValue), keyCode \(option.keyCode))")
         return true
     }
 
@@ -75,9 +74,9 @@ final class HotkeyListener {
 
         let eventKeyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-        if type == .flagsChanged && eventKeyCode == keyCode {
-            let optionDown = event.flags.contains(.maskAlternate)
-            optionDown ? hotkeyDown() : hotkeyUp()
+        if type == .flagsChanged && eventKeyCode == option.keyCode {
+            let keyDown = event.flags.contains(option.flag)
+            keyDown ? hotkeyDown() : hotkeyUp()
             return
         }
 
