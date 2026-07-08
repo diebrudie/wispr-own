@@ -56,4 +56,9 @@ echo "Signing with identity: $IDENTITY"
 codesign --force --deep --sign "$IDENTITY" "$APP"
 
 echo "Built $APP"
-echo "First launch: right-click the app > Open (unsigned build), then grant Microphone + Accessibility."
+if [ "$IDENTITY" = "-" ]; then
+  echo "NOTE: ad-hoc signed — macOS drops the Accessibility grant on every rebuild."
+  echo "      Run ./Scripts/make-signing-cert.sh once to fix this permanently."
+fi
+echo "First launch: right-click the app in Finder > Open (self-signed build),"
+echo "then grant Microphone + Accessibility when asked."
