@@ -62,7 +62,7 @@ struct MainWindowView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 22, height: 22)
                 .background(
-                    LinearGradient(colors: [Theme.accent, Theme.accentDeep],
+                    LinearGradient(colors: [Theme.accentFixed, Theme.accentDeep],
                                    startPoint: .top, endPoint: .bottom),
                     in: RoundedRectangle(cornerRadius: 6)
                 )

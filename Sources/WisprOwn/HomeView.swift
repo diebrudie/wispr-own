@@ -20,6 +20,7 @@ struct HomeView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.windowBackground)
         .onAppear { app.refreshRecent() }
     }
 }
@@ -35,10 +36,10 @@ private struct StatsCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Theme.tintedFill, lineWidth: 1)
+                .strokeBorder(Theme.border, lineWidth: 1)
         )
     }
 

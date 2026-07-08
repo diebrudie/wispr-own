@@ -268,6 +268,13 @@ final class AppState: ObservableObject {
         refreshRecent()
     }
 
+    func updateTranscriptText(id: Int64, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        history?.updateText(id: id, text: trimmed)
+        refreshRecent()
+    }
+
     // MARK: - Dictionary
 
     func refreshDictionary() {

@@ -199,6 +199,19 @@ final class HistoryStore {
         return stats
     }
 
+    /// User-corrected transcript text ("edit, then copy a perfect version").
+    func updateText(id: Int64, text: String) {
+        queue.sync {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "UPDATE transcripts SET text = ? WHERE id = ?",
+                                     -1, &stmt, nil) == SQLITE_OK else { return }
+            sqlite3_bind_text(stmt, 1, text, -1, Self.transient)
+            sqlite3_bind_int64(stmt, 2, id)
+            sqlite3_step(stmt)
+        }
+    }
+
     func delete(id: Int64) {
         queue.sync {
             var stmt: OpaquePointer?

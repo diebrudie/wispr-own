@@ -30,6 +30,7 @@ struct DictionaryView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.windowBackground)
         .onAppear { app.refreshDictionary() }
     }
 
@@ -78,7 +79,7 @@ struct DictionaryView: View {
                 .textFieldStyle(.plain)
         }
         .padding(8)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var emptyState: some View {
@@ -112,7 +113,7 @@ struct DictionaryView: View {
         }
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func commitAdd() {

@@ -37,7 +37,7 @@ struct SettingsOverlayView: View {
                 appearanceSection
                 generalSection
                 Section {
-                    LabeledContent("Version", value: "0.3.1")
+                    LabeledContent("Version", value: "0.3.2")
                     LabeledContent("Engine", value: "whisper large-v3-turbo · CoreML")
                 }
             }

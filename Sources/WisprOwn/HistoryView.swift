@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Reusable transcript list: search bar + day-grouped rows with copy/delete.
-/// Embedded in HomeView; kept standalone so future screens can reuse it.
+/// Reusable transcript list: search bar + day-grouped rows with a
+/// reserved hover-action area (copy + ⋯ menu with Edit/Delete).
 struct TranscriptList: View {
     @ObservedObject var app: AppState
     @State private var copiedId: Int64?
+    @State private var editing: Transcript?
 
     private var groups: [(day: String, items: [Transcript])] {
         var order: [String] = []
@@ -27,8 +28,13 @@ struct TranscriptList: View {
                 list
             }
         }
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         .onAppear { app.refreshRecent() }
+        .sheet(item: $editing) { transcript in
+            EditTranscriptSheet(transcript: transcript) { newText in
+                app.updateTranscriptText(id: transcript.id, text: newText)
+            }
+        }
     }
 
     private var searchBar: some View {
@@ -68,6 +74,7 @@ struct TranscriptList: View {
                             transcript: transcript,
                             copied: copiedId == transcript.id,
                             onCopy: { copy(transcript) },
+                            onEdit: { editing = transcript },
                             onDelete: { app.deleteTranscript(transcript) }
                         )
                     }
@@ -112,6 +119,7 @@ struct HistoryRow: View {
     let transcript: Transcript
     let copied: Bool
     let onCopy: () -> Void
+    let onEdit: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
 
@@ -138,31 +146,39 @@ struct HistoryRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 6) {
+            // Fixed-width action area — space is always reserved so the
+            // text never reflows on hover (actions just fade in).
+            HStack(spacing: 10) {
                 Button(action: onCopy) {
-                    if copied {
-                        Label("Copied", systemImage: "checkmark").foregroundStyle(.green)
-                    } else {
-                        Image(systemName: "doc.on.doc")
-                    }
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .foregroundStyle(copied ? AnyShapeStyle(.green) : AnyShapeStyle(Theme.accent))
+                        .frame(width: 18)
                 }
                 .buttonStyle(.borderless)
                 .help("Copy full transcript")
 
-                if hovering {
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Delete this dictation")
+                Menu {
+                    Button("Edit Transcript", systemImage: "pencil", action: onEdit)
+                    Button("Delete Transcript", systemImage: "trash", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 18)
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
             }
+            .frame(width: 60, alignment: .trailing)
+            .opacity(hovering || copied ? 1 : 0)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Copy", action: onCopy)
-            Button("Delete", role: .destructive, action: onDelete)
+            Button("Edit Transcript", action: onEdit)
+            Button("Delete Transcript", role: .destructive, action: onDelete)
         }
     }
 
@@ -171,5 +187,47 @@ struct HistoryRow: View {
         let f = DateFormatter()
         f.dateFormat = "h:mm a"
         return f.string(from: date).lowercased()
+    }
+}
+
+/// Edit sheet: fix recognition slips, save, then copy the perfect version.
+private struct EditTranscriptSheet: View {
+    let transcript: Transcript
+    let onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+
+    init(transcript: Transcript, onSave: @escaping (String) -> Void) {
+        self.transcript = transcript
+        self.onSave = onSave
+        _text = State(initialValue: transcript.text)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Transcript")
+                .font(.title3.weight(.semibold))
+            TextEditor(text: $text)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+                .frame(minHeight: 140)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    onSave(text)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 520, height: 280)
+        .tint(Theme.accent)
     }
 }
