@@ -15,3 +15,11 @@ Interview-confirmed decisions. Change only with a new explicit sign-off; append 
 | 9 | Distribution | GitHub repo; wife installs on her own Mac (build from source or shared .app) |
 
 Out of scope for v1: Windows, iOS, search in history, toggle-mode recording, saving audio files, custom vocabulary, streaming transcription.
+
+## Amendments
+
+| Date | Decision | Change |
+|------|----------|--------|
+| 2026-07-08 | #2, #8 | Regular app with Dock icon (was menu-bar-only): the status item was hidden by a crowded menu bar, and a clickable Dock icon opening History is the preferred UI. Menu bar mic kept as status indicator. |
+| 2026-07-08 | #3 | Engine gained a CoreML encoder (Neural Engine) on top of whisper.cpp Metal: ~3 s → ~0.8 s per dictation. Language detection moved to a tiny second model (ggml-base). |
+| 2026-07-08 | #9 | Wife won't use the app; distribution goal is now a private GitHub repo (github.com/diebrudie/wispr-own) with a README anyone can install from, made public once polished. |
