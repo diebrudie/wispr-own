@@ -1,58 +1,124 @@
-# WisprOwn
+<div align="center">
 
-Hold **Left Option**, speak, release — your words are transcribed locally and pasted
-wherever your cursor is. Every transcript is also saved to a local history window,
-so a failed paste never loses a dictation.
+# 🎙️ WisprOwn
 
-- **Private:** audio never leaves your Mac. Transcription runs locally via
-  [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`large-v3-turbo`).
-- **Multilingual:** English, German, and Spanish, auto-detected per dictation.
-- **Safety net:** menu bar → History shows your last 20 transcripts with one-click copy.
+**Hold a key. Speak. Release. Your words appear where your cursor is.**
 
-## Requirements
+Private, local, multilingual push-to-talk dictation for macOS —
+no cloud, no subscription, no audio ever leaving your Mac.
 
-- Apple Silicon Mac (M1 or newer), macOS 14+
-- Xcode 15+ command line tools (`xcode-select --install`)
-- ~2 GB free disk (the Whisper model downloads on first launch)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-M1%E2%80%93M4-blueviolet)
+![Swift](https://img.shields.io/badge/Swift-5.10-F05138?logo=swift&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
+
+*Work in progress — functional, rough edges, built in the open.*
+
+</div>
+
+---
+
+## Why
+
+Tools like Wispr Flow are excellent — but they send your voice to the cloud and
+charge monthly for it. WisprOwn is the ~owned~ alternative: OpenAI's Whisper
+running entirely on your Mac's Neural Engine, wrapped in a native Swift app.
+Your audio is processed in memory and never written to disk or network.
+
+## Features
+
+|     | Feature | Detail |
+|-----|---------|--------|
+| 🎙️ | **Push-to-talk** | Hold **Left Option**, speak, release — text pastes at your cursor |
+| 🔒 | **100% local** | whisper.cpp + CoreML on the Neural Engine; zero network calls after setup |
+| 🌍 | **Multilingual** | English, German, Spanish — auto-detected per dictation |
+| ⚡ | **Fast** | ~1 s from key-release to paste on Apple Silicon (M3 measured) |
+| 🧾 | **Nothing gets lost** | Every transcript is saved to a local SQLite history *before* pasting |
+| 🖥️ | **History window** | Click the Dock icon — last 20 dictations, one-click copy |
+| 📋 | **Clipboard-safe** | Whatever you had copied is restored ~1 s after each paste |
 
 ## Install
 
+> **Requirements:** Apple Silicon Mac (M1+), macOS 14+, Xcode command line tools
+> (`xcode-select --install`), ~3 GB free disk for the speech models.
+
 ```sh
-git clone <this-repo>
+git clone git@github.com:diebrudie/wispr-own.git
 cd wispr-own
+Scripts/make-signing-cert.sh   # one-time: stable signing identity (approve the dialogs)
 make app
-open dist/WisprOwn.app   # if blocked: right-click the app in Finder > Open
+open dist/WisprOwn.app         # if Gatekeeper complains: right-click → Open
 ```
 
-### First launch, step by step
+### First launch
 
-1. **Microphone** — macOS asks automatically. Click **Allow**.
-2. **Accessibility** — a prompt points you to
-   *System Settings → Privacy & Security → Accessibility*. Enable **WisprOwn**,
-   then quit and reopen the app (macOS only applies this grant on restart).
-3. **Model download** — the menu bar icon shows progress (~2.9 GB total, one time:
-   main model, a small language-detection model, and a CoreML encoder that makes
-   transcription ~4× faster on the Neural Engine). The very first dictation load
-   takes ~1 minute extra while macOS compiles the CoreML model; after that it's cached.
-4. When the icon becomes a plain microphone, you're ready: focus any text field,
-   **hold Left Option**, speak, release.
+1. **Allow Microphone** when macOS asks.
+2. **Grant Accessibility**: System Settings → Privacy & Security → Accessibility →
+   add `dist/WisprOwn.app` and toggle it on. *(This lets the app see the hotkey
+   and paste for you.)*
+3. Wait for the **models to download** (~2.9 GB, one time — Dock/menu bar icon
+   shows progress) plus **~1 minute** of one-time CoreML compilation on the very
+   first model load.
+4. Icon shows a plain mic → click into any text field, **hold Left Option**,
+   speak, release.
 
-## Usage notes
+## Usage
 
-- Taps shorter than 300 ms are ignored; pressing any other key while holding
-  Option cancels the dictation — so Option-accents (ñ, ü, €) still work normally.
-- Your previous clipboard is restored about a second after each paste.
-- **History:** menu bar icon → *History…* — last 20 transcripts, click to copy.
-- All data lives in `~/Library/Application Support/WisprOwn/`
-  (model + `history.sqlite`). Delete that folder to reset everything.
+- **Taps shorter than 300 ms are ignored** — no accidental recordings.
+- **Option-key accents still work** (ñ, ü, €…): pressing any other key while
+  holding Option cancels the dictation and types normally.
+- **History**: click the Dock icon (or menu bar mic → History…). Click 📄 on any
+  row to copy it — your safety net if a paste ever misfires.
+- **Menu bar mic** shows live state: mic = ready, waveform = recording,
+  ellipsis = transcribing, slashed = permissions needed.
+
+## How it works
+
+```
+ Hold ⌥ ──▶ CGEventTap ──▶ AVAudioEngine ──▶ 16 kHz PCM buffer (in memory)
+                                                    │ release ⌥
+                                                    ▼
+                              ggml-base (Neural lang detect, ~0.15 s)
+                                                    ▼
+                       whisper large-v3-turbo (CoreML encoder on ANE, ~0.7 s)
+                                                    ▼
+                    SQLite history (saved first — zero-loss) ──▶ ⌘V paste
+                                                    ▼
+                                    previous clipboard restored
+```
+
+All data lives in `~/Library/Application Support/WisprOwn/` — delete that
+folder to reset the app completely.
 
 ## Development
 
 ```sh
-make run                      # run from source (terminal shows debug logs)
-swift build                   # compile only
-.build/debug/WisprOwn --transcribe test.wav   # headless pipeline check
+make run                                       # run from source with live logs
+swift build                                    # compile only
+.build/debug/WisprOwn --transcribe test.wav    # headless pipeline check
 ```
 
-Project specs live in `specs/` — one file per component, plus the evaluation
-gates in `specs/08-evaluation.md`.
+The project is spec-driven: every component has a one-page spec in
+[`specs/`](specs/), including the [decision record](specs/00-decisions.md) and
+[measurable quality gates](specs/08-evaluation.md) the app is tested against.
+
+| Spec | Component |
+|------|-----------|
+| [01](specs/01-hotkey-listener.md) | Hotkey state machine (hold / cancel / ignore) |
+| [02](specs/02-audio-capture.md) | Microphone capture |
+| [03](specs/03-transcription.md) | Whisper + CoreML two-model pipeline |
+| [04](specs/04-paste.md) | Paste + clipboard restore |
+| [05](specs/05-history-store.md) | Zero-loss SQLite history |
+| [06](specs/06-menubar-and-history-ui.md) | Menu bar + history window |
+| [07](specs/07-packaging.md) | Bundling & distribution |
+
+## Roadmap
+
+- [ ] Streaming transcription (encode while speaking → near-instant paste)
+- [ ] Configurable hotkey in the UI (Fn/Globe support)
+- [ ] Search in history
+- [ ] Custom vocabulary hints
+
+## License
+
+[MIT](LICENSE) — do whatever you like, no warranty.
