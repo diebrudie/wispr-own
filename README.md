@@ -43,12 +43,16 @@ Your audio is processed in memory and never written to disk or network.
 > (`xcode-select --install`), ~3 GB free disk for the speech models.
 
 ```sh
-git clone git@github.com:diebrudie/wispr-own.git
+git clone git@github.com:diebrudie/wispr-own.git   # or: gh repo clone diebrudie/wispr-own
 cd wispr-own
-Scripts/make-signing-cert.sh   # one-time: stable signing identity (approve the dialogs)
+./Scripts/make-signing-cert.sh   # one-time: stable signing identity (approve the dialogs)
 make app
-open dist/WisprOwn.app         # if Gatekeeper complains: right-click → Open
+open dist/WisprOwn.app           # if Gatekeeper complains: right-click the app → Open
 ```
+
+> **No accounts, no API keys.** Everything runs on-device. The only network
+> activity is the one-time model download from Hugging Face (public files,
+> no authentication) — after that the app works fully offline.
 
 ### First launch
 
@@ -89,6 +93,17 @@ open dist/WisprOwn.app         # if Gatekeeper complains: right-click → Open
 
 All data lives in `~/Library/Application Support/WisprOwn/` — delete that
 folder to reset the app completely.
+
+## Troubleshooting
+
+| Symptom | Explanation |
+|---------|-------------|
+| **App seems dead for ~1 minute after first launch** | macOS is compiling the CoreML model for the Neural Engine — one time per machine. The status icon shows "Loading model…"; just wait. |
+| **No menu bar icon** | A crowded menu bar (especially next to a MacBook notch) hides new items. Remove some icons, or just use the Dock icon — WisprOwn also appears in ⌘Tab. |
+| **"Nothing opened" after `open dist/WisprOwn.app`** | It did — there's no main window. Look for the mic in the menu bar and the violet icon in the Dock (click it for History). |
+| **Hotkey stopped working after rebuilding** | You skipped `make-signing-cert.sh`, so the rebuild changed the app's identity and macOS dropped the Accessibility grant. Remove and re-add WisprOwn under System Settings → Privacy & Security → Accessibility, then create the cert so it never happens again. |
+| **Gatekeeper refuses to open the app** | The build is self-signed, not notarized. Right-click the app in Finder → Open (needed once). |
+| **Dictation pastes nothing** | Check the History window — if the text is there, the target field rejected synthetic ⌘V; copy it manually. If it's not there, the recording was empty/too short. |
 
 ## Development
 
