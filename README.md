@@ -209,6 +209,8 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 - [x] Hub window, light/dark theme, live waveform bar — v0.4
 - [ ] Interactive bar: hover to show `Dictate ⌥` and a click-to-record button
 - [ ] Streaming transcription (encode while speaking → near-instant paste)
+- [ ] Optional LLM cleanup with your own API key (fixes spoken self-corrections; off by default)
+- [ ] Dictating over playing music or video without transcribing it
 - [ ] Insights page (usage charts, streak heatmap)
 - [ ] UI localization (DE/ES)
 - [ ] Notarized release so no right-click-to-open is needed

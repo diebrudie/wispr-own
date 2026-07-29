@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = NSSize(width: 220, height: 46)
         panel.setFrame(NSRect(
             x: screen.frame.midX - size.width / 2,
-            y: screen.visibleFrame.minY + 4,
+            y: screen.frame.minY + 4,
             width: size.width,
             height: size.height
         ), display: true)
