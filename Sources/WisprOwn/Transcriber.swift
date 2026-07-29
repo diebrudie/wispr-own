@@ -100,9 +100,33 @@ final class Transcriber {
         return probs.indices.contains(id) ? probs[id] : 0
     }
 
+    /// Loudest 100 ms below this and nobody spoke. Measured: room tone sits
+    /// near 0.002, a deliberately quiet talker still hits 0.022, normal
+    /// speech 0.02–0.3 — so 0.01 sits in the middle of a 10× gap.
+    /// ponytail: one fixed threshold, calibrate per-mic only if it misfires.
+    static let speechFloor: Float = 0.01
+
+    /// Whisper invents filler when handed silence — "you", "Thank you.",
+    /// "Vielen Dank" — and that filler would paste over whatever the user had
+    /// selected. Its own `no_speech_prob` reads 0 under greedy sampling, so
+    /// the gate has to come from the audio: loudest 100 ms frame vs the floor.
+    static func hasSpeech(_ samples: [Float]) -> Bool {
+        let frame = Int(AudioRecorder.targetSampleRate / 10)
+        var peak: Float = 0
+        for start in stride(from: 0, to: samples.count, by: frame) {
+            let chunk = samples[start..<min(start + frame, samples.count)]
+            peak = max(peak, sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count)))
+        }
+        return peak >= speechFloor
+    }
+
     /// Returns nil on failure; empty text means silence/no speech.
     func transcribe(samples: [Float]) -> Output? {
         guard let ctx else { return nil }
+        guard Self.hasSpeech(samples) else {
+            dlog("whisper: silence, nothing to transcribe")
+            return Output(text: "", language: "unknown", transcribeMs: 0)
+        }
         // whisper.cpp needs at least ~1s of audio to behave; pad short clips.
         var audio = samples
         let minSamples = Int(AudioRecorder.targetSampleRate * 1.1)

@@ -17,6 +17,10 @@ enum Entry {
             TranscribeCLI.printStats()
             return
         }
+        if CommandLine.arguments.contains("--selftest") {
+            TranscribeCLI.selfTest()
+            return
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

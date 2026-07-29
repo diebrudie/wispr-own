@@ -24,6 +24,29 @@ enum TranscribeCLI {
         _exit(0)
     }
 
+    /// `WisprOwn --selftest` — asserts the silence gate on synthetic buffers,
+    /// so a threshold change can't quietly start eating real dictations.
+    /// No model or audio files needed; runs in milliseconds.
+    static func selfTest() {
+        setvbuf(stdout, nil, _IONBF, 0)
+        let n = Int(AudioRecorder.targetSampleRate) * 2
+        func tone(_ amplitude: Float) -> [Float] {
+            (0..<n).map { amplitude * sin(Float($0) * 0.05) }
+        }
+        // sin RMS is amplitude/√2, so amplitude 0.003 ≈ 0.002 measured room tone.
+        precondition(!Transcriber.hasSpeech([Float](repeating: 0, count: n)), "digital silence")
+        precondition(!Transcriber.hasSpeech(tone(0.003)), "room tone")
+        precondition(!Transcriber.hasSpeech([]), "empty buffer")
+        precondition(Transcriber.hasSpeech(tone(0.031)), "quiet talker")
+        precondition(Transcriber.hasSpeech(tone(0.25)), "normal speech")
+        // One loud word inside otherwise-silent audio must still count.
+        var mostlySilent = [Float](repeating: 0, count: n)
+        mostlySilent.replaceSubrange(0..<3_200, with: tone(0.25).prefix(3_200))
+        precondition(Transcriber.hasSpeech(mostlySilent), "brief word in silence")
+        print("selftest: silence gate ok (floor \(Transcriber.speechFloor))")
+        _exit(0)
+    }
+
     static func run(path: String) {
         // Unbuffered stdout: we exit via _exit(), which skips stream flushing.
         setvbuf(stdout, nil, _IONBF, 0)
