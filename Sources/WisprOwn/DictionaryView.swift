@@ -4,6 +4,30 @@ import SwiftUI
 /// and jargon transcribe correctly. Modeled on the Wispr Flow layout.
 struct DictionaryView: View {
     @ObservedObject var app: AppState
+
+    var body: some View {
+        ScrollView {
+            DictionaryContent(
+                entries: app.dictionary,
+                onAdd: { app.addDictionaryEntry($0) },
+                onUpdate: { app.updateDictionaryEntry(id: $0, phrase: $1) },
+                onDelete: { app.deleteDictionaryEntry(id: $0) }
+            )
+        }
+        .onAppear { app.refreshDictionary() }
+    }
+}
+
+/// The layout, over plain data rather than `AppState`, so it can be rendered
+/// headlessly — `WisprOwn --snapshot <path> dictionary`. This page blanked the
+/// whole window twice while I could only reason about it; being able to render
+/// it is what turned that into a five-minute fix.
+struct DictionaryContent: View {
+    let entries: [HistoryStore.DictionaryEntry]
+    var onAdd: (String) -> Bool = { _ in true }
+    var onUpdate: (Int64, String) -> Void = { _, _ in }
+    var onDelete: (Int64) -> Void = { _ in }
+
     @State private var query = ""
     @State private var adding = false
     @State private var newPhrase = ""
@@ -13,8 +37,8 @@ struct DictionaryView: View {
 
     private var filtered: [HistoryStore.DictionaryEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return app.dictionary }
-        return app.dictionary.filter { $0.phrase.localizedCaseInsensitiveContains(q) }
+        guard !q.isEmpty else { return entries }
+        return entries.filter { $0.phrase.localizedCaseInsensitiveContains(q) }
     }
 
     var body: some View {
@@ -30,9 +54,7 @@ struct DictionaryView: View {
         }
         .padding(24)
         .pageWidth()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.clear)
-        .onAppear { app.refreshDictionary() }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -65,9 +87,9 @@ struct DictionaryView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if !app.dictionary.isEmpty {
+            if !entries.isEmpty {
                 HStack(spacing: 7) {
-                    ForEach(app.dictionary.prefix(5)) { entry in
+                    ForEach(Array(entries.prefix(5))) { entry in
                         Text(entry.phrase)
                             .font(.system(size: 13, weight: .medium))
                             .padding(.horizontal, 11)
@@ -129,8 +151,7 @@ struct DictionaryView: View {
     /// and left no way off this screen. The history list already uses this
     /// construct in the same container.
     private var list: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
+        VStack(spacing: 0) {
                 ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 { Divider().padding(.leading, 14) }
                     DictionaryRow(
@@ -142,20 +163,19 @@ struct DictionaryView: View {
                             editText = entry.phrase
                         },
                         onCommit: {
-                            app.updateDictionaryEntry(id: entry.id, phrase: editText)
+                            onUpdate(entry.id, editText)
                             editingId = nil
                         },
                         onCancel: { editingId = nil },
-                        onDelete: { app.deleteDictionaryEntry(id: entry.id) }
+                        onDelete: { onDelete(entry.id) }
                     )
-                }
             }
         }
         .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func commitAdd() {
-        if app.addDictionaryEntry(newPhrase) {
+        if onAdd(newPhrase) {
             newPhrase = ""
             addFieldFocused = true // stay in flow for adding several terms
         }

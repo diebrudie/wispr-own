@@ -115,3 +115,21 @@ something is missing above it.
 
 `--snapshot` gained a `wide` argument to render at 1500pt, which is how the
 max-width behaviour and the two-column row get checked.
+
+## Snapshotting the Dictionary page
+
+`WisprOwn --snapshot <path> dictionary` renders the Dictionary page the same
+way. It exists because that page blanked the entire window twice — sidebar
+included, with no way to navigate away — while it could only be reasoned about,
+and rendering it turned the third attempt into a five-minute fix.
+
+Two rules the harness taught, both of which were the actual bugs:
+
+1. **`ImageRenderer` cannot lay out a `ScrollView`** — it renders empty. A page
+   split into `Content` (plain data, no scroll) and `View` (owns the scroll) is
+   both snapshot-able and the shape that works in the app.
+2. **A page must not nest a scroll view inside its own body.** The Dictionary
+   list had `ScrollView { LazyVStack }` inside the page's `VStack`; with no
+   resolvable height inside the detail container that collapsed the whole
+   `NavigationSplitView`. Home and Insights never hit it because they have
+   exactly one scroll view, owned by the screen.

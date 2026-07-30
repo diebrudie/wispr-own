@@ -156,6 +156,9 @@ enum TranscribeCLI {
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
         NSApplication.shared.appearance = appearance
         let wide = CommandLine.arguments.contains("wide")
+        if CommandLine.arguments.contains("dictionary") {
+            renderDictionary(store: store, path: path, dark: dark)
+        }
         let view = InsightsContent(analytics: store.analytics())
             .frame(width: wide ? 1500 : 980, height: 1400, alignment: .top)
             .background(Theme.contentBackground)
@@ -174,6 +177,27 @@ enum TranscribeCLI {
         }
         try? png.write(to: URL(fileURLWithPath: path))
         print("snapshot: \(path) (\(dark ? "dark" : "light"))")
+        _exit(0)
+    }
+
+    @MainActor
+    private static func renderDictionary(store: HistoryStore, path: String, dark: Bool) {
+        let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
+        NSApplication.shared.appearance = appearance
+        let view = DictionaryContent(entries: store.dictionaryEntries())
+            .frame(width: 980, height: 900, alignment: .top)
+            .background(Theme.contentBackground)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        var rendered: NSImage?
+        appearance.performAsCurrentDrawingAppearance { rendered = renderer.nsImage }
+        guard let image = rendered, let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
+            print("error: render failed")
+            _exit(1)
+        }
+        try? png.write(to: URL(fileURLWithPath: path))
+        print("snapshot: \(path) (dictionary)")
         _exit(0)
     }
 
