@@ -118,29 +118,39 @@ struct DictionaryView: View {
                 ? "Add names and terms Whisper gets wrong — they'll transcribe correctly from then on."
                 : "No entry contains “\(query)”.")
         )
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 
+    /// ScrollView + LazyVStack rather than `List`. A `List` is an NSTableView
+    /// underneath and demands to size itself from its container; inside the
+    /// page panel (clipped, rounded, max-width) it can't resolve a height, and
+    /// SwiftUI abandons the whole split view — which took the sidebar with it
+    /// and left no way off this screen. The history list already uses this
+    /// construct in the same container.
     private var list: some View {
-        List(filtered) { entry in
-            DictionaryRow(
-                entry: entry,
-                isEditing: editingId == entry.id,
-                editText: $editText,
-                onEdit: {
-                    editingId = entry.id
-                    editText = entry.phrase
-                },
-                onCommit: {
-                    app.updateDictionaryEntry(id: entry.id, phrase: editText)
-                    editingId = nil
-                },
-                onCancel: { editingId = nil },
-                onDelete: { app.deleteDictionaryEntry(id: entry.id) }
-            )
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 { Divider().padding(.leading, 14) }
+                    DictionaryRow(
+                        entry: entry,
+                        isEditing: editingId == entry.id,
+                        editText: $editText,
+                        onEdit: {
+                            editingId = entry.id
+                            editText = entry.phrase
+                        },
+                        onCommit: {
+                            app.updateDictionaryEntry(id: entry.id, phrase: editText)
+                            editingId = nil
+                        },
+                        onCancel: { editingId = nil },
+                        onDelete: { app.deleteDictionaryEntry(id: entry.id) }
+                    )
+                }
+            }
         }
-        .listStyle(.inset)
-        .scrollContentBackground(.hidden)
         .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 12))
     }
 

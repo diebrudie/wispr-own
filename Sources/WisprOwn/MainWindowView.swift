@@ -46,6 +46,12 @@ struct MainWindowView: View {
                 Divider()
                 settingsButton
             }
+            .frame(maxHeight: .infinity)
+            // Fills the whole column so the sidebar's own material can't show
+            // through around the edges — it should read as the page, not a panel.
+            .background(Theme.windowBackground)
+            .scrollContentBackground(.hidden)
+            .toolbarBackground(Theme.windowBackground, for: .windowToolbar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 216, max: 260)
         } detail: {
             Group {
@@ -56,8 +62,10 @@ struct MainWindowView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.contentBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            // Painted, not clipped. `.clipShape` here forces every child into a
+            // clipped container and a `List` can't resolve a size against it —
+            // that blanked the whole split view, sidebar included.
+            .background(Theme.contentBackground, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
             .padding(EdgeInsets(top: 8, leading: 0, bottom: 10, trailing: 10))
             .background(Theme.windowBackground)
