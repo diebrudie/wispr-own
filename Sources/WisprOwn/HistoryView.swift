@@ -60,7 +60,7 @@ struct TranscriptList: View {
         }
         // Fixed height: the search field is taller than the icon it replaces,
         // so without this the whole list jumps down when the loop is clicked.
-        .frame(height: 30)
+        .frame(height: Control.height)
         .padding(.horizontal, 4)
     }
 
@@ -71,8 +71,9 @@ struct TranscriptList: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search all dictations…", text: $app.searchQuery)
                     .textFieldStyle(.plain)
+                    .font(.system(size: 14))
                     .focused($searchFocused)
-                    .frame(width: 200)
+                    .frame(width: 210)
                 Button {
                     app.searchQuery = ""
                     searchOpen = false
@@ -81,10 +82,11 @@ struct TranscriptList: View {
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Theme.insetCard, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.border))
+            .padding(.horizontal, 12)
+            .frame(height: Control.height)
+            .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: Control.radius))
+            .overlay(RoundedRectangle(cornerRadius: Control.radius)
+                .strokeBorder(Theme.border, lineWidth: 1))
         } else {
             Button {
                 searchOpen = true

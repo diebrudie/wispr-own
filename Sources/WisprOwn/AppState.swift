@@ -216,6 +216,7 @@ final class AppState: ObservableObject {
 
         appearance.apply()
 
+        recorder.prewarm()
         recorder.onLevel = { [weak self] level in self?.pushLevel(level) }
         hotkey.onStart = { [weak self] in self?.startRecording() }
         hotkey.onStop = { [weak self] in self?.stopAndTranscribe() }

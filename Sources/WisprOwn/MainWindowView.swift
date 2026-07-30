@@ -6,7 +6,7 @@ struct MainWindowView: View {
     @ObservedObject var app: AppState
     @State private var selection: Screen = .home
     @State private var showSettings = false
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var sidebarVisible = true
 
     enum Screen: String, CaseIterable, Identifiable {
         case home, insights, dictionary
@@ -30,29 +30,18 @@ struct MainWindowView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            VStack(alignment: .leading, spacing: 0) {
-                wordmark
-                List(Screen.allCases, selection: $selection) { screen in
-                    Label(screen.title, systemImage: screen.icon)
-                        .font(.system(size: 15))
-                        .padding(.vertical, 3)
-                        .tag(screen)
-                }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
-
-                Spacer(minLength: 0)
-                Divider()
-                settingsButton
+        // A plain HStack, not NavigationSplitView. The split view draws its own
+        // sidebar panel — inset, rounded, with vibrancy — and there is no
+        // supported way to turn that off; every attempt to cover it left an
+        // edge. Laying the two columns out directly is less code and the
+        // sidebar genuinely becomes part of the page.
+        HStack(spacing: 0) {
+            if sidebarVisible {
+                sidebar
+                    .frame(width: 216)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            // The sidebar reads as page, not panel: its own vibrancy material is
-            // replaced by the flat window colour, edge to edge.
-            .background(Theme.windowBackground)
-            .toolbarBackground(Theme.windowBackground, for: .windowToolbar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 216, max: 260)
-        } detail: {
+
             Group {
                 switch selection {
                 case .home: HomeView(app: app)
@@ -61,32 +50,65 @@ struct MainWindowView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Painted, not clipped. `.clipShape` here forces every child into a
-            // clipped container and a `List` can't resolve a size against it —
-            // that blanked the whole split view, sidebar included.
             .background(Theme.contentBackground, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
             .padding(EdgeInsets(top: 8, leading: 0, bottom: 10, trailing: 10))
-            .background(Theme.windowBackground)
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        withAnimation {
-                            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                    }
-                    .help("Hide or show the sidebar")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.windowBackground)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { sidebarVisible.toggle() }
+                } label: {
+                    Image(systemName: "sidebar.left")
                 }
+                .help("Hide or show the sidebar")
             }
         }
-        .navigationSplitViewStyle(.balanced)
+        .toolbarBackground(Theme.windowBackground, for: .windowToolbar)
         .tint(Theme.accent)
         .sheet(isPresented: $showSettings) {
             SettingsOverlayView(app: app)
         }
         .frame(minWidth: 860, minHeight: 560)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            wordmark
+            VStack(spacing: 2) {
+                ForEach(Screen.allCases) { screen in
+                    sidebarItem(screen)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 4)
+
+            Spacer(minLength: 0)
+            Divider().padding(.horizontal, 10)
+            settingsButton
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func sidebarItem(_ screen: Screen) -> some View {
+        Button {
+            selection = screen
+        } label: {
+            Label(screen.title, systemImage: screen.icon)
+                .font(.system(size: 15))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(
+                    selection == screen ? AnyShapeStyle(Theme.tintedFill) : AnyShapeStyle(.clear),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+                .foregroundStyle(selection == screen ? Theme.accent : .primary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var wordmark: some View {

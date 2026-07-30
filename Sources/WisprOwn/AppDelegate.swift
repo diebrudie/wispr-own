@@ -69,11 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         panel.isFloatingPanel = true
-        // Above ordinary windows of every app, but *below* system UI. At
-        // .screenSaver it also covered the screenshot thumbnail and the ⌘-Tab
-        // switcher, which made the whole app feel like it was stuck on top.
-        // .floating still wins against normal windows, which is all the bar needs.
-        panel.level = .floating
+        // Level matters twice over. .floating (3) sits *below* the Dock (20),
+        // so the bar hid behind it. .screenSaver (1000) sits above system UI and
+        // covered the screenshot thumbnail and the ⌘-Tab switcher. .statusBar
+        // (25) clears the Dock and stays under system UI — the right shelf.
+        panel.level = .statusBar
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

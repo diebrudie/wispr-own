@@ -144,6 +144,22 @@ enum LLMCleanup {
         URL(string: base.trimmingCharacters(in: CharacterSet(charactersIn: " /")) + path)
     }
 
+    /// A cleanup pass should tidy the words, not replace them. If the reply is
+    /// far shorter or far longer than what was said, the model answered the
+    /// transcript, summarised it, or invented something — none of which is the
+    /// job. Rejecting it falls back to the raw dictation, which is always safe.
+    static func isPlausibleCleanup(original: String, cleaned: String) -> Bool {
+        let originalWords = original.split(whereSeparator: \.isWhitespace).count
+        let cleanedWords = cleaned.split(whereSeparator: \.isWhitespace).count
+        guard originalWords > 0 else { return false }
+        // Filler removal and self-correction can legitimately cut a third;
+        // growing is harder to justify, so the ceiling is tighter.
+        let ratio = Double(cleanedWords) / Double(originalWords)
+        // Very short dictations swing wildly on one word — let those through.
+        if originalWords <= 4 { return cleanedWords <= originalWords + 3 }
+        return ratio >= 0.55 && ratio <= 1.35
+    }
+
     static func clean(_ text: String, config: LLMConfig) async -> CleanupOutcome {
         let path = config.provider.wire == .anthropic ? "/messages" : "/chat/completions"
         guard let url = endpoint(config.baseURL, path) else {
@@ -220,7 +236,11 @@ enum LLMCleanup {
             data = ok
         }
 
-        let outcome = config.provider.wire == .anthropic ? parseAnthropic(data) : parseOpenAI(data)
+        var outcome = config.provider.wire == .anthropic ? parseAnthropic(data) : parseOpenAI(data)
+        if case .cleaned(let cleaned) = outcome, !isPlausibleCleanup(original: text, cleaned: cleaned) {
+            dlog("cleanup: reply too far from the dictation, keeping raw text")
+            outcome = .failed("Reply didn't match what you said — original kept")
+        }
         let ms = Int((DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000)
         switch outcome {
         case .cleaned: dlog("cleanup: \(ms) ms via \(config.model)")

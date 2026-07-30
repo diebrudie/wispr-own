@@ -20,8 +20,16 @@ final class AudioRecorder {
     private var capFired = false
     private(set) var isRecording = false
 
+    /// Allocates the engine's render resources ahead of the first dictation.
+    /// `prepare()` does not open the microphone — no recording indicator, no
+    /// privacy change — it just moves work off the key-press path.
+    func prewarm() {
+        engine.prepare()
+    }
+
     func start() throws {
         guard !isRecording else { return }
+        let began = DispatchTime.now()
         bufferQueue.sync {
             samples.removeAll(keepingCapacity: true)
             capFired = false
@@ -54,7 +62,11 @@ final class AudioRecorder {
         engine.prepare()
         try engine.start()
         isRecording = true
-        dlog("audio: recording started (\(Int(inputFormat.sampleRate)) Hz input)")
+        // The gap between pressing the key and the mic actually delivering
+        // samples is what clips the first word. Logged so it can be measured
+        // rather than guessed at.
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - began.uptimeNanoseconds) / 1_000_000
+        dlog("audio: recording started in \(String(format: "%.0f", ms)) ms (\(Int(inputFormat.sampleRate)) Hz input)")
     }
 
     /// Stops and returns the captured 16 kHz mono samples.
@@ -64,6 +76,7 @@ final class AudioRecorder {
         engine.stop()
         isRecording = false
         converter = nil
+        engine.prepare() // ready for the next press
         let captured = bufferQueue.sync { samples }
         dlog("audio: stopped, \(String(format: "%.1f", Double(captured.count) / Self.targetSampleRate))s captured")
         return captured

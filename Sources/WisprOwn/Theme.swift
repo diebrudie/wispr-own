@@ -121,24 +121,74 @@ enum Theme {
     }
 }
 
-/// The app's primary action button: filled accent, white label, generous hit
-/// area. Previously every action was a default macOS bordered button, which
-/// disappeared into the page.
+/// One size for every interactive control in the app. Buttons and text fields
+/// that differ by a few points read as sloppiness, and they were: a bordered
+/// "Cancel" next to a filled "Add" came out shorter, and text fields were
+/// shorter than both.
+enum Control {
+    static let height: CGFloat = 38
+    static let radius: CGFloat = 9
+    static let font = Font.system(size: 14, weight: .semibold)
+}
+
+/// Filled accent — the primary action on a screen.
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
+            .font(Control.font)
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
-            .padding(.vertical, 9)
+            .frame(height: Control.height)
             .background(Theme.accentFixed.opacity(configuration.isPressed ? 0.8 : 1),
-                        in: RoundedRectangle(cornerRadius: 9))
-            .contentShape(RoundedRectangle(cornerRadius: 9))
+                        in: RoundedRectangle(cornerRadius: Control.radius))
+            .contentShape(RoundedRectangle(cornerRadius: Control.radius))
+    }
+}
+
+/// Same geometry, quieter fill — for the action beside a primary one.
+struct SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Control.font)
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 16)
+            .frame(height: Control.height)
+            .background(Theme.tintedFill.opacity(configuration.isPressed ? 0.6 : 1),
+                        in: RoundedRectangle(cornerRadius: Control.radius))
+            .contentShape(RoundedRectangle(cornerRadius: Control.radius))
     }
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle {
     static var primary: PrimaryButtonStyle { PrimaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == SecondaryButtonStyle {
+    static var secondary: SecondaryButtonStyle { SecondaryButtonStyle() }
+}
+
+/// A text field that matches the buttons: same height, same corner radius.
+struct FieldBackground: ViewModifier {
+    var focused = false
+
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .font(.system(size: 14))
+            .padding(.horizontal, 12)
+            .frame(height: Control.height)
+            .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: Control.radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: Control.radius)
+                    .strokeBorder(focused ? Theme.accent : Theme.border, lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func fieldStyle(focused: Bool = false) -> some View {
+        modifier(FieldBackground(focused: focused))
+    }
 }
 
 /// Flow-style page framing: content stops growing past a comfortable reading

@@ -106,9 +106,9 @@ struct DictionaryContent: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
 
         if adding {
-            HStack {
+            HStack(spacing: 10) {
                 TextField("New word or phrase…", text: $newPhrase)
-                    .textFieldStyle(.roundedBorder)
+                    .fieldStyle(focused: addFieldFocused)
                     .focused($addFieldFocused)
                     .onSubmit(commitAdd)
                 Button("Add", action: commitAdd)
@@ -118,6 +118,7 @@ struct DictionaryContent: View {
                     adding = false
                     newPhrase = ""
                 }
+                .buttonStyle(.secondary)
             }
         }
     }
@@ -127,9 +128,13 @@ struct DictionaryContent: View {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Search dictionary…", text: $query)
                 .textFieldStyle(.plain)
+                .font(.system(size: 14))
         }
-        .padding(8)
-        .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 12)
+        .frame(height: Control.height)
+        .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: Control.radius))
+        .overlay(RoundedRectangle(cornerRadius: Control.radius)
+            .strokeBorder(Theme.border, lineWidth: 1))
     }
 
     private var emptyState: some View {
@@ -199,11 +204,10 @@ private struct DictionaryRow: View {
         HStack(spacing: 12) {
             if isEditing {
                 TextField("", text: $editText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 16))
+                    .fieldStyle()
                     .onSubmit(onCommit)
                 Button("Save", action: onCommit).buttonStyle(.primary)
-                Button("Cancel", action: onCancel)
+                Button("Cancel", action: onCancel).buttonStyle(.secondary)
             } else {
                 Text(entry.phrase)
                     .font(.system(size: 16))
