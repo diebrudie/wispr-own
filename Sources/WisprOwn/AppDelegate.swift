@@ -175,7 +175,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: hosting)
             window.title = "WisprOwn"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 960, height: 620))
+            window.setContentSize(NSSize(width: 1100, height: 700))
+            // Below this the sidebar plus a page of cards stops fitting and the
+            // layout starts wrapping into itself.
+            window.contentMinSize = NSSize(width: 900, height: 560)
             window.isReleasedWhenClosed = false
             window.center()
             mainWindow = window

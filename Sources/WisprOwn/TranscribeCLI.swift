@@ -136,8 +136,10 @@ enum TranscribeCLI {
         // on the app, not via SwiftUI's colorScheme.
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
         NSApplication.shared.appearance = appearance
+        let wide = CommandLine.arguments.contains("wide")
         let view = InsightsContent(analytics: store.analytics())
-            .frame(width: 940, height: 1560, alignment: .top)
+            .frame(width: wide ? 1500 : 980, height: 1400, alignment: .top)
+            .background(Theme.windowBackground)
             .environment(\.colorScheme, dark ? .dark : .light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2

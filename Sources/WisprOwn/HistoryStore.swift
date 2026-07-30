@@ -205,6 +205,15 @@ final class HistoryStore {
         struct Day: Identifiable { let date: Date; let words: Int; var id: Date { date } }
         struct Hour: Identifiable { let hour: Int; let count: Int; var id: Int { hour } }
         struct Bucket: Identifiable { let name: String; let count: Int; var id: String { name } }
+        /// One square in the activity calendar, carrying enough for its tooltip.
+        struct CalendarDay: Identifiable {
+            let date: Date
+            let dictations: Int
+            let words: Int
+            let appsUsed: Int
+            let topApp: String?
+            var id: Date { date }
+        }
 
         var dictations = 0
         var words = 0
@@ -221,8 +230,8 @@ final class HistoryStore {
         var perHour: [Hour] = []
         var perApp: [Bucket] = []
         var perLanguage: [Bucket] = []
-        /// Dictations per day over ~15 weeks, for the activity calendar.
-        var calendar: [Day] = []
+        /// Per-day activity over ~15 weeks, for the calendar.
+        var calendar: [CalendarDay] = []
 
         var isEmpty: Bool { dictations == 0 }
         var averageWords: Int { dictations == 0 ? 0 : words / dictations }
@@ -248,6 +257,7 @@ final class HistoryStore {
         var result = Analytics()
         var wordsByDay: [String: Int] = [:]
         var dictationsByDay: [String: Int] = [:]
+        var appsByDay: [String: [String: Int]] = [:]
         var countsByHour = [Int](repeating: 0, count: 24)
         var countsByApp: [String: Int] = [:]
         var countsByLanguage: [String: Int] = [:]
@@ -268,6 +278,7 @@ final class HistoryStore {
             }
             if let app = row.targetApp, !app.isEmpty {
                 countsByApp[app, default: 0] += 1
+                appsByDay[day, default: [:]][app, default: 0] += 1
             }
             countsByLanguage[row.language ?? "unknown", default: 0] += 1
         }
@@ -332,7 +343,15 @@ final class HistoryStore {
         let span = daysIntoWeek + (weeks - 1) * 7
         result.calendar = (0...span).reversed().compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            return Analytics.Day(date: date, words: dictationsByDay[formatter.string(from: date)] ?? 0)
+            let key = formatter.string(from: date)
+            let apps = appsByDay[key] ?? [:]
+            return Analytics.CalendarDay(
+                date: date,
+                dictations: dictationsByDay[key] ?? 0,
+                words: wordsByDay[key] ?? 0,
+                appsUsed: apps.count,
+                topApp: apps.max { ($0.value, $1.key) < ($1.value, $0.key) }?.key
+            )
         }
         result.perApp = countsByApp
             .map { Analytics.Bucket(name: $0.key, count: $0.value) }

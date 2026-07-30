@@ -89,3 +89,29 @@ something is missing above it.
 - No CSV export.
 - The activity calendar has no month labels along the top.
 - The trend pill is hidden until there are two full 30-day periods to compare.
+
+---
+
+# Revision — 2026-07-30 (layout and interaction pass)
+
+- **Calendar cells are interactive.** Hovering a day rings it and opens a
+  popover with that day's dictations, words, apps used, and top app. The store
+  now builds `CalendarDay` (per-day app counts included) rather than a bare
+  count. Days with no activity have nothing to say, so they don't open one.
+- **Streak and Languages sit side by side**, via `ViewThatFits` — it stacks them
+  when the window can't take two columns. Full-bleed cards make the eye travel
+  the whole window for one short row.
+- **Real app icons** in "Where it lands", from `NSWorkspace.icon(forFile:)`.
+  Nothing to ship, always correct for whatever the user dictates into, with an
+  SF Symbol fallback for anything macOS can't resolve.
+- **Pages are capped and centred** (`PageWidth`, 1040pt) on Home, Insights and
+  Dictionary, and the window has a content minimum of 900×560. Text spanning a
+  full-width display is genuinely hard to track from line to line, and below the
+  minimum the layout starts wrapping into itself.
+- **Type scale raised** across the sidebar, transcript list, and Home stats card.
+- **The search field no longer shifts the page.** The day header is a fixed
+  30pt row, so swapping the magnifier for the taller text field can't push
+  everything below it down.
+
+`--snapshot` gained a `wide` argument to render at 1500pt, which is how the
+max-width behaviour and the two-column row get checked.

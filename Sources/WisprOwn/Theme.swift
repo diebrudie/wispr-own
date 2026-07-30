@@ -107,6 +107,23 @@ enum Theme {
     }
 }
 
+/// Flow-style page framing: content stops growing past a comfortable reading
+/// width and centres, rather than stretching edge to edge on a wide display —
+/// a row of text spanning 2000px is genuinely hard to track left to right.
+struct PageWidth: ViewModifier {
+    static let maximum: CGFloat = 1040
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: Self.maximum, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+extension View {
+    func pageWidth() -> some View { modifier(PageWidth()) }
+}
+
 enum AppearanceOption: String, CaseIterable, Identifiable {
     case system, light, dark
     var id: String { rawValue }

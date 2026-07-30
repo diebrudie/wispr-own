@@ -9,17 +9,18 @@ struct HomeView: View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Welcome back, \(app.greetingName)")
-                    .font(.largeTitle.weight(.semibold))
+                    .font(.system(size: 30, weight: .semibold))
                 TranscriptList(app: app)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             StatsCard(stats: app.stats)
-                .frame(width: 200)
+                .frame(width: 232)
                 .padding(.top, 52) // aligns with the list, below the headline
         }
         .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .pageWidth()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.windowBackground)
         .onAppear { app.refreshRecent() }
     }
@@ -29,12 +30,12 @@ private struct StatsCard: View {
     let stats: HistoryStore.Stats
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             statRow(value: formattedWords, unit: "total words")
             statRow(value: "\(stats.wordsPerMinute)", unit: "wpm")
             statRow(value: "\(stats.dayStreak)", unit: stats.dayStreak == 1 ? "day streak" : "days streak")
         }
-        .padding(18)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
@@ -46,10 +47,10 @@ private struct StatsCard: View {
     private func statRow(value: String, unit: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(value)
-                .font(.title.weight(.semibold).monospacedDigit())
+                .font(.system(size: 27, weight: .semibold).monospacedDigit())
                 .foregroundStyle(Theme.accent)
             Text(unit)
-                .font(.callout)
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
         }
     }

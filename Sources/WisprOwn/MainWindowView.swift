@@ -35,6 +35,8 @@ struct MainWindowView: View {
                 wordmark
                 List(Screen.allCases, selection: $selection) { screen in
                     Label(screen.title, systemImage: screen.icon)
+                        .font(.system(size: 15))
+                        .padding(.vertical, 3)
                         .tag(screen)
                 }
                 .listStyle(.sidebar)
@@ -44,7 +46,7 @@ struct MainWindowView: View {
                 Divider()
                 settingsButton
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 216, max: 260)
         } detail: {
             Group {
                 switch selection {

@@ -50,7 +50,7 @@ struct TranscriptList: View {
     private func header(label: String, showsSearch: Bool) -> some View {
         HStack {
             Text(label.uppercased())
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .kerning(0.6)
             Spacer()
@@ -58,6 +58,9 @@ struct TranscriptList: View {
                 searchControl
             }
         }
+        // Fixed height: the search field is taller than the icon it replaces,
+        // so without this the whole list jumps down when the loop is clicked.
+        .frame(height: 30)
         .padding(.horizontal, 4)
     }
 

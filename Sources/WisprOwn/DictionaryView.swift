@@ -29,7 +29,8 @@ struct DictionaryView: View {
             }
         }
         .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .pageWidth()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.windowBackground)
         .onAppear { app.refreshDictionary() }
     }
@@ -37,7 +38,7 @@ struct DictionaryView: View {
     private var header: some View {
         HStack {
             Text("Dictionary")
-                .font(.largeTitle.weight(.semibold))
+                .font(.system(size: 30, weight: .semibold))
             Spacer()
             Button {
                 adding = true

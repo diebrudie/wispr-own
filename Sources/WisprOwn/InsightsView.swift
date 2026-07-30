@@ -50,23 +50,37 @@ struct InsightsContent: View {
                     Card("Where it lands", subtitle: "Top apps") {
                         RankedBars(buckets: Array(analytics.perApp.prefix(6)),
                                    total: analytics.dictations,
-                                   label: InsightsContent.appName)
+                                   label: InsightsContent.appName,
+                                   icon: InsightsContent.appIcon)
                     }
                 }
-                Card("\(analytics.currentStreak) day streak",
-                     subtitle: "Longest run: \(analytics.longestStreak) days",
-                     titleSize: 22) {
-                    ActivityCalendar(days: analytics.calendar)
-                }
-                Card("Languages", subtitle: "Share of dictations") {
-                    RankedBars(buckets: analytics.perLanguage,
-                               total: analytics.dictations,
-                               label: InsightsContent.languageName)
+                // Side by side when there's room, stacked when there isn't.
+                // Full-bleed cards make the eye travel the whole window for
+                // one short row of information.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 20) { streakCard; languagesCard }
+                    VStack(alignment: .leading, spacing: 20) { streakCard; languagesCard }
                 }
             }
         }
         .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .pageWidth()
+    }
+
+    private var streakCard: some View {
+        Card("\(analytics.currentStreak) day streak",
+             subtitle: "Longest run: \(analytics.longestStreak) days",
+             titleSize: 22) {
+            ActivityCalendar(days: analytics.calendar)
+        }
+    }
+
+    private var languagesCard: some View {
+        Card("Languages", subtitle: "Share of dictations") {
+            RankedBars(buckets: analytics.perLanguage,
+                       total: analytics.dictations,
+                       label: InsightsContent.languageName)
+        }
     }
 
     private var empty: some View {
@@ -111,6 +125,15 @@ struct InsightsContent: View {
                 .replacingOccurrences(of: ".app", with: "")
         }
         return bundleID.split(separator: ".").last.map(String.init) ?? bundleID
+    }
+
+    /// The app's own icon, straight from macOS — real logos, nothing to ship,
+    /// and correct for whatever the user happens to dictate into.
+    static func appIcon(_ bundleID: String) -> NSImage? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return nil
+        }
+        return NSWorkspace.shared.icon(forFile: url.path)
     }
 
     static func languageName(_ code: String) -> String {
@@ -346,12 +369,13 @@ private struct ByHourChart: View {
 /// Intensity is a magnitude, so it's a single-hue ramp — and the legend spells
 /// the ends out, because a ramp read alone is guesswork.
 private struct ActivityCalendar: View {
-    let days: [HistoryStore.Analytics.Day]
+    let days: [HistoryStore.Analytics.CalendarDay]
+    @State private var hovered: HistoryStore.Analytics.CalendarDay?
 
     private let cell: CGFloat = 15
     private let gap: CGFloat = 4
 
-    private var weeks: [[HistoryStore.Analytics.Day]] {
+    private var weeks: [[HistoryStore.Analytics.CalendarDay]] {
         stride(from: 0, to: days.count, by: 7).map {
             Array(days[$0..<min($0 + 7, days.count)])
         }
@@ -359,7 +383,7 @@ private struct ActivityCalendar: View {
 
     /// The busiest day sets the top of the scale, so the ramp uses its full
     /// range whether the record is one dictation a day or thirty.
-    private var peak: Int { max(1, days.map(\.words).max() ?? 1) }
+    private var peak: Int { max(1, days.map(\.dictations).max() ?? 1) }
 
     private func color(_ count: Int) -> Color {
         guard count > 0 else { return Theme.calendarEmpty }
@@ -385,10 +409,8 @@ private struct ActivityCalendar: View {
                     ForEach(weeks.indices, id: \.self) { index in
                         VStack(spacing: gap) {
                             ForEach(weeks[index]) { day in
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(color(day.words))
-                                    .frame(width: cell, height: cell)
-                                    .help("\(day.date.formatted(.dateTime.day().month(.abbreviated))): \(day.words) dictations")
+                                DayCell(day: day, size: cell, fill: color(day.dictations),
+                                        hovered: $hovered)
                             }
                         }
                     }
@@ -421,12 +443,25 @@ private struct RankedBars: View {
     let buckets: [HistoryStore.Analytics.Bucket]
     let total: Int
     let label: (String) -> String
+    /// Apps get their real icon; languages have none, so the column collapses.
+    var icon: ((String) -> NSImage?)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
             ForEach(buckets) { bucket in
                 VStack(alignment: .leading, spacing: 5) {
-                    HStack {
+                    HStack(spacing: 8) {
+                        if let icon {
+                            Group {
+                                if let image = icon(bucket.name) {
+                                    Image(nsImage: image).resizable()
+                                } else {
+                                    Image(systemName: "app.dashed")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(width: 18, height: 18)
+                        }
                         Text(label(bucket.name)).lineLimit(1)
                         Spacer(minLength: 8)
                         Text("\(bucket.count)")
@@ -530,5 +565,68 @@ private struct Card<Content: View>: View {
                 content
             }
         }
+    }
+}
+
+/// One square. Split out because the popover, hover ring and fill together
+/// were too much for the type-checker inline.
+private struct DayCell: View {
+    let day: HistoryStore.Analytics.CalendarDay
+    let size: CGFloat
+    let fill: Color
+    @Binding var hovered: HistoryStore.Analytics.CalendarDay?
+
+    private var isHovered: Bool { hovered?.id == day.id }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(fill)
+            .frame(width: size, height: size)
+            .overlay(ring)
+            .onHover { inside in
+                if inside { hovered = day } else if isHovered { hovered = nil }
+            }
+            .popover(isPresented: showDetail, arrowEdge: .top) { DayDetail(day: day) }
+    }
+
+    private var ring: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .strokeBorder(Theme.accent, lineWidth: isHovered ? 2 : 0)
+    }
+
+    /// Only days with activity have anything to say.
+    private var showDetail: Binding<Bool> {
+        Binding(get: { isHovered && day.dictations > 0 },
+                set: { if !$0, isHovered { hovered = nil } })
+    }
+}
+
+/// The hover card: what actually happened on that day.
+private struct DayDetail: View {
+    let day: HistoryStore.Analytics.CalendarDay
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+                .font(.callout.weight(.semibold))
+            Divider()
+            row("Dictations", "\(day.dictations)")
+            row("Words", InsightsContent.decimal(day.words))
+            row("Apps used", "\(day.appsUsed)")
+            if let top = day.topApp {
+                row("Top app", InsightsContent.appName(top))
+            }
+        }
+        .padding(14)
+        .frame(width: 250)
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value).monospacedDigit()
+        }
+        .font(.callout)
     }
 }
