@@ -166,13 +166,13 @@ struct HistoryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(time)
-                .font(.callout.monospacedDigit())
+                .font(.system(size: 13).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(transcript.text)
-                    .font(.body)
+                    .font(.system(size: 15))
                     .lineLimit(4)
                     .textSelection(.enabled)
                 if let language = transcript.language {

@@ -69,10 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         panel.isFloatingPanel = true
-        // Above the menu bar and other apps' floating panels. .statusBar sat
-        // below full-screen windows and some overlays, so the bar vanished
-        // exactly when it was most needed — mid-dictation over another app.
-        panel.level = .screenSaver
+        // Above ordinary windows of every app, but *below* system UI. At
+        // .screenSaver it also covered the screenshot thumbnail and the ⌘-Tab
+        // switcher, which made the whole app feel like it was stuck on top.
+        // .floating still wins against normal windows, which is all the bar needs.
+        panel.level = .floating
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

@@ -184,7 +184,13 @@ enum TranscribeCLI {
     private static func renderDictionary(store: HistoryStore, path: String, dark: Bool) {
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
         NSApplication.shared.appearance = appearance
-        let view = DictionaryContent(entries: store.dictionaryEntries())
+        // `demo` fills the table with sample rows — with one real entry there
+        // are no dividers or hover states to look at.
+        let entries = CommandLine.arguments.contains("demo")
+            ? ["Wispr Flow", "kyan-webpresentation", "hubSpot-export", "Gothaer", "DKB", "Isabel"]
+                .enumerated().map { HistoryStore.DictionaryEntry(id: Int64($0.offset), phrase: $0.element) }
+            : store.dictionaryEntries()
+        let view = DictionaryContent(entries: entries)
             .frame(width: 980, height: 900, alignment: .top)
             .background(Theme.contentBackground)
         let renderer = ImageRenderer(content: view)

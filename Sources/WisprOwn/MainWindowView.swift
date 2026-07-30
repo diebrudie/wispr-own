@@ -46,11 +46,10 @@ struct MainWindowView: View {
                 Divider()
                 settingsButton
             }
-            .frame(maxHeight: .infinity)
-            // Fills the whole column so the sidebar's own material can't show
-            // through around the edges — it should read as the page, not a panel.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // The sidebar reads as page, not panel: its own vibrancy material is
+            // replaced by the flat window colour, edge to edge.
             .background(Theme.windowBackground)
-            .scrollContentBackground(.hidden)
             .toolbarBackground(Theme.windowBackground, for: .windowToolbar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 216, max: 260)
         } detail: {

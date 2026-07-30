@@ -150,10 +150,12 @@ struct DictionaryContent: View {
     /// SwiftUI abandons the whole split view — which took the sidebar with it
     /// and left no way off this screen. The history list already uses this
     /// construct in the same container.
+    /// Flow-style table: one bordered card, full-width rows, hairline dividers
+    /// between them, and the row actions appearing on hover at the right.
     private var list: some View {
         VStack(spacing: 0) {
                 ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
-                    if index > 0 { Divider().padding(.leading, 14) }
+                    if index > 0 { Divider() }
                     DictionaryRow(
                         entry: entry,
                         isEditing: editingId == entry.id,
@@ -171,7 +173,8 @@ struct DictionaryContent: View {
                     )
             }
         }
-        .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.contentBackground, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.border, lineWidth: 1))
     }
 
     private func commitAdd() {
@@ -193,27 +196,36 @@ private struct DictionaryRow: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             if isEditing {
                 TextField("", text: $editText)
                     .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 16))
                     .onSubmit(onCommit)
                 Button("Save", action: onCommit).buttonStyle(.primary)
                 Button("Cancel", action: onCancel)
             } else {
                 Text(entry.phrase)
-                Spacer()
-                if hovering {
+                    .font(.system(size: 16))
+                Spacer(minLength: 8)
+                // Actions appear on hover, so a resting row is just the word.
+                HStack(spacing: 16) {
                     Button(action: onEdit) { Image(systemName: "pencil") }
-                        .buttonStyle(.borderless)
                         .help("Edit")
                     Button(action: onDelete) { Image(systemName: "trash") }
-                        .buttonStyle(.borderless)
                         .help("Delete")
                 }
+                .font(.system(size: 17))
+                .foregroundStyle(.primary)
+                .buttonStyle(.borderless)
+                .opacity(hovering ? 1 : 0)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(hovering ? Theme.rowHover : Color.clear)
+        .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Edit", action: onEdit)
