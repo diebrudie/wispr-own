@@ -20,13 +20,6 @@ final class AudioRecorder {
     private var capFired = false
     private(set) var isRecording = false
 
-    /// Allocates the engine's render resources ahead of the first dictation.
-    /// `prepare()` does not open the microphone — no recording indicator, no
-    /// privacy change — it just moves work off the key-press path.
-    func prewarm() {
-        engine.prepare()
-    }
-
     func start() throws {
         guard !isRecording else { return }
         let began = DispatchTime.now()
@@ -76,7 +69,10 @@ final class AudioRecorder {
         engine.stop()
         isRecording = false
         converter = nil
-        engine.prepare() // ready for the next press
+        // Deliberately NOT prepared here or at launch: `prepare()` touches
+        // `engine.inputNode`, which spins up the audio HAL, and on the launch
+        // path that blocked `AppState.init` and the app never finished starting.
+        // The start-latency log below is the honest way to size this problem.
         let captured = bufferQueue.sync { samples }
         dlog("audio: stopped, \(String(format: "%.1f", Double(captured.count) / Self.targetSampleRate))s captured")
         return captured

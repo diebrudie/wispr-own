@@ -6,14 +6,18 @@ import SwiftUI
 /// SwiftUI's MenuBarExtra and it can report its own visibility for debugging.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var appState: AppState!
+    /// Optional, not implicitly-unwrapped: macOS can deliver a reopen event
+    /// *before* `applicationDidFinishLaunching` runs, and force-unwrapping this
+    /// there crashed the app on every launch-while-launching.
+    private var appState: AppState?
     private var statusItem: NSStatusItem!
     private var mainWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMainMenu()
-        appState = AppState()
+        let appState = AppState()
+        self.appState = appState
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         updateIcon(for: appState.phase)
@@ -42,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.$phase
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                guard let self, self.appState.showFlowBar else { return }
+                guard let self, self.appState?.showFlowBar == true else { return }
                 self.flowBarPanel?.orderFrontRegardless()
             }
             .store(in: &cancellables)
@@ -51,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.appState.showFlowBar else { return }
+                guard let self, self.appState?.showFlowBar == true else { return }
                 self.flowBarPanel?.orderFrontRegardless()
             }
         }
@@ -62,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var flowBarPanel: NSPanel?
 
     private func setupFlowBar() {
+        guard let appState else { return }
         let panel = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -193,6 +198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openMainWindow() {
+        // Nil until launch finishes; a reopen can arrive before that.
+        guard let appState else { return }
         appState.refreshRecent()
         if mainWindow == nil {
             let hosting = NSHostingController(rootView: MainWindowView(app: appState))
