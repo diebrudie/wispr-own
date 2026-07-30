@@ -30,16 +30,8 @@ Surface words the transcriber seems unsure about, or that the user frequently ed
 ## F. Public release hardening
 Apple Developer ID + notarization (removes the Gatekeeper right-click-open step), then flip the repo public. See `specs/07-packaging.md`.
 
-## G. Optional LLM cleanup — bring your own API key — requested 2026-07-29
-Whisper transcribes faithfully: say "send an email to John, I mean to Jenn" and you get exactly that. Flow reads better because it runs the raw transcript through a small LLM afterwards. That post-pass is what resolves spoken self-corrections, drops filler ("um", "like"), and fixes punctuation and casing.
-
-**The default stays local and LLM-free.** This is opt-in: Settings gains a provider picker (Anthropic / OpenAI / other) plus an API key field. Key present → one short cleanup call between `Transcriber` and `Paster`. Key absent → today's behaviour, unchanged, no network.
-
-**Implementation notes:**
-- Key goes in the Keychain, not `UserDefaults`.
-- The call sits on the paste path, so it *adds* latency (see §B). Needs a hard timeout that falls back to the raw transcript rather than blocking the paste — a slow paste is worse than an uncleaned one.
-- The dictionary (spec 10) overlaps: feed its terms into the prompt instead of running two correction passes that fight each other.
-- This sends transcript text off-device. Say so plainly in the Settings UI next to the field — it's the one place the app stops being local-only.
+## G. Optional LLM cleanup — bring your own API key
+**Built 2026-07-30 — see `specs/13-llm-cleanup.md`.** Off by default; opt in with an API key in Settings → Cleanup.
 
 ## H. Dictating over playing audio — requested 2026-07-29
 With music or video playing, the mic picks up the speakers and Whisper transcribes them alongside the user. The app should recognise it's being spoken *to*.

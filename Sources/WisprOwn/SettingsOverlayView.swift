@@ -12,12 +12,13 @@ struct SettingsOverlayView: View {
     @State private var devices: [AudioInputDevice] = []
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, profile, system
+        case general, cleanup, profile, system
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .general: return "General"
+            case .cleanup: return "Cleanup"
             case .profile: return "Profile"
             case .system: return "System"
             }
@@ -26,6 +27,7 @@ struct SettingsOverlayView: View {
         var icon: String {
             switch self {
             case .general: return "slider.horizontal.3"
+            case .cleanup: return "wand.and.sparkles"
             case .profile: return "person.circle"
             case .system: return "macwindow"
             }
@@ -107,6 +109,7 @@ struct SettingsOverlayView: View {
             Form {
                 switch pane {
                 case .general: generalPane
+                case .cleanup: cleanupPane
                 case .profile: profilePane
                 case .system: systemPane
                 }
@@ -188,6 +191,46 @@ struct SettingsOverlayView: View {
             .foregroundStyle(selected ? Theme.accent : .secondary)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Cleanup (optional LLM pass, Spec 12 §G)
+
+    @ViewBuilder
+    private var cleanupPane: some View {
+        Section {
+            Picker("Provider", selection: $app.llmProvider) {
+                ForEach(LLMProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }
+            SecureField("API key", text: $app.llmAPIKey, prompt: Text("Paste to enable"))
+            TextField("Model", text: $app.llmModel)
+            TextField("Endpoint", text: $app.llmBaseURL)
+        } header: {
+            Text("Transcript Cleanup")
+        } footer: {
+            Text(app.llmAPIKey.isEmpty
+                 ? "Off. Dictation stays entirely on this Mac — nothing leaves the device."
+                 : "On. Each dictation is sent to \(app.llmProvider.displayName) to resolve spoken corrections (\"email John, I mean Jenn\" → \"email Jenn\"), drop filler, and fix punctuation. Your transcripts leave this Mac while this is on. Clear the key to turn it off.")
+        }
+
+        if !app.llmAPIKey.isEmpty {
+            Section {
+                if let error = app.llmError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                } else {
+                    Label("No errors on the last dictation.", systemImage: "checkmark.circle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Status")
+            } footer: {
+                Text("Cleanup gets \(Int(LLMCleanup.timeout)) seconds. If it fails or times out, the original transcript is pasted instead — a dictation is never lost to this.")
+            }
+        }
     }
 
     // MARK: - Profile

@@ -84,6 +84,47 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(lastName, forKey: "lastName") }
     }
 
+    // MARK: - Optional LLM cleanup (Spec 12 §G)
+
+    @Published var llmProvider: LLMProvider {
+        didSet {
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: "llmProvider")
+            // Each provider keeps its own model, endpoint, and key.
+            llmModel = UserDefaults.standard.string(forKey: modelKey) ?? llmProvider.defaultModel
+            llmBaseURL = UserDefaults.standard.string(forKey: baseURLKey) ?? llmProvider.defaultBaseURL
+            llmAPIKey = LLMKeychain.read(llmProvider.rawValue) ?? ""
+        }
+    }
+    @Published var llmModel: String {
+        didSet { UserDefaults.standard.set(llmModel, forKey: modelKey) }
+    }
+    @Published var llmBaseURL: String {
+        didSet { UserDefaults.standard.set(llmBaseURL, forKey: baseURLKey) }
+    }
+    /// Mirrors the Keychain entry so SwiftUI can bind to it. Cleanup is on
+    /// exactly when this is non-empty — clearing the field deletes the key.
+    @Published var llmAPIKey: String {
+        didSet { LLMKeychain.save(llmAPIKey, account: llmProvider.rawValue) }
+    }
+    /// Last cleanup failure, shown in Settings. A silent fallback to the raw
+    /// transcript would otherwise look like the feature just doesn't work.
+    @Published var llmError: String?
+
+    private var modelKey: String { "llmModel.\(llmProvider.rawValue)" }
+    private var baseURLKey: String { "llmBaseURL.\(llmProvider.rawValue)" }
+
+    var llmConfig: LLMConfig? {
+        let key = llmAPIKey.trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty else { return nil }
+        return LLMConfig(
+            provider: llmProvider,
+            model: llmModel,
+            baseURL: llmBaseURL,
+            apiKey: key,
+            glossary: dictionary.map(\.phrase)
+        )
+    }
+
     /// Name used in the Home greeting: Settings first name, falling back
     /// to the macOS account's first name.
     var greetingName: String {
@@ -119,6 +160,16 @@ final class AppState: ObservableObject {
         firstName = UserDefaults.standard.string(forKey: "firstName") ?? ""
         lastName = UserDefaults.standard.string(forKey: "lastName") ?? ""
         showFlowBar = UserDefaults.standard.object(forKey: "showFlowBar") as? Bool ?? true
+
+        let provider = UserDefaults.standard.string(forKey: "llmProvider")
+            .flatMap(LLMProvider.init(rawValue:)) ?? .anthropic
+        llmProvider = provider
+        llmModel = UserDefaults.standard.string(forKey: "llmModel.\(provider.rawValue)")
+            ?? provider.defaultModel
+        llmBaseURL = UserDefaults.standard.string(forKey: "llmBaseURL.\(provider.rawValue)")
+            ?? provider.defaultBaseURL
+        llmAPIKey = LLMKeychain.read(provider.rawValue) ?? ""
+
         appearance.apply()
 
         recorder.onLevel = { [weak self] level in self?.pushLevel(level) }
@@ -240,10 +291,30 @@ final class AppState: ObservableObject {
         }
         phase = .transcribing
 
+        let cleanup = llmConfig // nil unless the user stored an API key
         Task.detached(priority: .userInitiated) { [transcriber, weak self] in
-            let output = transcriber.transcribe(samples: samples)
+            var output = transcriber.transcribe(samples: samples)
+            if let cleanup, let raw = output, !raw.text.isEmpty {
+                switch await LLMCleanup.clean(raw.text, config: cleanup) {
+                case .cleaned(let text):
+                    output = Transcriber.Output(
+                        text: text,
+                        language: raw.language,
+                        transcribeMs: raw.transcribeMs
+                    )
+                    await self?.noteCleanup(error: nil)
+                case .failed(let message):
+                    // Keep the raw transcript — a failed cleanup must never
+                    // cost the user their dictation.
+                    await self?.noteCleanup(error: message)
+                }
+            }
             await self?.finish(output: output, audioMs: audioMs, targetApp: targetApp)
         }
+    }
+
+    private func noteCleanup(error: String?) {
+        llmError = error
     }
 
     private func finish(output: Transcriber.Output?, audioMs: Int, targetApp: String?) {

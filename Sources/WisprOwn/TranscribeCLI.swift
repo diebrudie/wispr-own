@@ -44,6 +44,30 @@ enum TranscribeCLI {
         mostlySilent.replaceSubrange(0..<3_200, with: tone(0.25).prefix(3_200))
         precondition(Transcriber.hasSpeech(mostlySilent), "brief word in silence")
         print("selftest: silence gate ok (floor \(Transcriber.speechFloor))")
+
+        // Cleanup response parsing — a wrong shape here would silently cost
+        // every cleaned dictation, since failures fall back to the raw text.
+        func json(_ string: String) -> Data { Data(string.utf8) }
+        precondition(
+            LLMCleanup.parseAnthropic(json(#"{"content":[{"type":"text","text":" Send an email to Jenn. "}]}"#))
+                == .cleaned("Send an email to Jenn."), "anthropic text block")
+        precondition(
+            LLMCleanup.parseAnthropic(json(#"{"stop_reason":"refusal","content":[]}"#))
+                == .failed("Model declined the request"), "anthropic refusal")
+        precondition(
+            LLMCleanup.parseAnthropic(json(#"{"content":[{"type":"thinking","thinking":"hm"}]}"#))
+                == .failed("Empty response"), "no text block")
+        precondition(
+            LLMCleanup.parseOpenAI(json(#"{"choices":[{"message":{"content":"Send an email to Jenn."}}]}"#))
+                == .cleaned("Send an email to Jenn."), "openai choice")
+        precondition(
+            LLMCleanup.parseOpenAI(json("not json")) == .failed("Unreadable response"), "malformed body")
+        precondition(
+            LLMCleanup.apiErrorMessage(json(#"{"error":{"message":"invalid x-api-key"}}"#))
+                == "invalid x-api-key", "api error message")
+        precondition(
+            LLMCleanup.systemPrompt(glossary: ["Bruda"]).contains("Bruda"), "glossary in prompt")
+        print("selftest: cleanup parsing ok")
         _exit(0)
     }
 

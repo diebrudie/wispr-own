@@ -200,6 +200,7 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 | [10](specs/10-dictionary.md) | Dictionary / custom vocabulary |
 | [11](specs/11-flow-bar.md) | The floating WisprOwn bar |
 | [12](specs/12-future-features.md) | Backlog & future ideas |
+| [13](specs/13-llm-cleanup.md) | Optional LLM transcript cleanup |
 
 ---
 
@@ -209,7 +210,7 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 - [x] Hub window, light/dark theme, live waveform bar — v0.4
 - [ ] Interactive bar: hover to show `Dictate ⌥` and a click-to-record button
 - [ ] Streaming transcription (encode while speaking → near-instant paste)
-- [ ] Optional LLM cleanup with your own API key (fixes spoken self-corrections; off by default)
+- [x] Optional LLM cleanup with your own API key (fixes spoken self-corrections; off by default)
 - [ ] Dictating over playing music or video without transcribing it
 - [ ] Insights page (usage charts, streak heatmap)
 - [ ] UI localization (DE/ES)
