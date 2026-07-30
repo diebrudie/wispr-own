@@ -47,7 +47,7 @@ final class HotkeyListener {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        dlog("hotkey: listening (\(option.rawValue), keyCode \(option.keyCode))")
+        dlog("hotkey: listening (\(option.displayName), keyCode \(option.keyCode))")
         return true
     }
 

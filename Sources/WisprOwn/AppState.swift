@@ -51,7 +51,7 @@ final class AppState: ObservableObject {
         didSet {
             HotkeyOption.current = hotkeyOption
             hotkey.option = hotkeyOption
-            dlog("app: hotkey switched to \(hotkeyOption.rawValue)")
+            dlog("app: hotkey switched to \(hotkeyOption.displayName) (code \(hotkeyOption.keyCode))")
             // Re-publish so the menu status line picks up the new key name.
             if case .idle = phase { phase = .idle }
         }
@@ -296,7 +296,12 @@ final class AppState: ObservableObject {
                 accessibility: !Permissions.accessibilityGranted
             )
             if !logged {
-                dlog("app: waiting for permissions (mic=\(Permissions.microphoneGranted), ax=\(Permissions.accessibilityGranted))")
+                // Spelled out: this line previously printed the *granted*
+                // booleans while the enum beside it uses true = missing, and it
+                // sent debugging after the wrong permission.
+                let mic = Permissions.microphoneGranted ? "granted" : "MISSING"
+                let ax = Permissions.accessibilityGranted ? "granted" : "MISSING"
+                dlog("app: waiting for permissions (microphone \(mic), accessibility \(ax))")
                 logged = true
             }
             try? await Task.sleep(for: .seconds(2))

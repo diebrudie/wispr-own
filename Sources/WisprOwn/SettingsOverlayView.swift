@@ -10,6 +10,7 @@ struct SettingsOverlayView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var devices: [AudioInputDevice] = []
+    @StateObject private var recorder = HotkeyRecorder()
 
     enum Pane: String, CaseIterable, Identifiable {
         case general, apiKeys, profile, system
@@ -52,6 +53,7 @@ struct SettingsOverlayView: View {
         .frame(width: 780, height: 560)
         .tint(Theme.accent)
         .onAppear { devices = AudioDevices.inputDevices() }
+        .onDisappear { recorder.stop() }
     }
 
     private var navColumn: some View {
@@ -125,15 +127,40 @@ struct SettingsOverlayView: View {
     @ViewBuilder
     private var generalPane: some View {
         Section("Shortcut") {
-            Picker("Push-to-talk key", selection: $app.hotkeyOption) {
-                ForEach(HotkeyOption.allCases) { option in
-                    Text(option.displayName).tag(option)
+            LabeledContent("Push-to-talk key") {
+                HStack(spacing: 8) {
+                    Text(recorder.isRecording ? "Press any modifier key…" : app.hotkeyOption.displayName)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(recorder.isRecording ? Theme.accent : .primary)
+                        .frame(minWidth: 150, alignment: .trailing)
+                    Button {
+                        if recorder.isRecording {
+                            recorder.stop()
+                        } else {
+                            recorder.start { app.hotkeyOption = $0 }
+                        }
+                    } label: {
+                        Image(systemName: recorder.isRecording ? "xmark" : "pencil")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(recorder.isRecording ? "Cancel" : "Change the key")
                 }
             }
-            if let caveat = app.hotkeyOption.caveat {
-                Label(caveat, systemImage: "exclamationmark.triangle")
+            if recorder.isRecording {
+                Text("Hold the key you want and it's saved — Option, Control, Command, Shift or 🌐.")
                     .font(.callout)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
+            }
+            if let caveat = app.hotkeyOption.caveat {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(caveat, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                    Spacer(minLength: 8)
+                    Button("Open Keyboard Settings…") { HotkeyOption.openKeyboardSettings() }
+                        .buttonStyle(.secondary)
+                        .fixedSize()
+                }
             }
         }
 
