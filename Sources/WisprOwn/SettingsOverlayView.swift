@@ -85,7 +85,7 @@ struct SettingsOverlayView: View {
 
             Spacer()
 
-            Text("WisprOwn v0.4.0 · whisper turbo")
+            Text("WisprOwn v0.5.0 · whisper turbo")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(12)

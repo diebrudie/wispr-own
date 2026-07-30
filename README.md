@@ -119,7 +119,15 @@ open dist/WisprOwn.app
   Transcript* and *Delete Transcript*. Editing is your fix-and-copy safety net
   if a paste ever misfires.
 - **Dictionary** — add names, companies, product terms. They're fed to the
-  transcriber as context so `Gothaer` stops coming out as `Gotar`.
+  transcriber as context so `Gothaer` stops coming out as `Gotar`. You mostly
+  won't need to: fix a word while editing a transcript and it's remembered
+  automatically, so correcting `hupspot` to `HubSpot` once is enough.
+- **API Keys** *(optional)* — paste a key from Anthropic, OpenAI or Grok and each
+  dictation gets tidied before pasting: filler removed, punctuation fixed, and
+  spoken self-corrections resolved (*"email John, I mean Jenn"* → *"email
+  Jenn"*). Leave it empty and dictation stays entirely on your Mac. Your audio
+  is never uploaded either way — only the transcript text, and only if you add
+  a key.
 - **Settings** — the gear at the bottom of the hub window's sidebar (or ⌘,).
   Change the push-to-talk key, pick a microphone, enable more dictation
   languages, switch light/dark, or set the name used to greet you.
