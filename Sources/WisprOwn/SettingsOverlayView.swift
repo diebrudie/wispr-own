@@ -2,7 +2,7 @@ import ServiceManagement
 import SwiftUI
 
 /// Settings sheet with a Flow-style grouped layout: a small nav column
-/// (General / Profile / System) beside the active pane.
+/// (General / API Keys / Profile / System) beside the active pane.
 struct SettingsOverlayView: View {
     @ObservedObject var app: AppState
     @Environment(\.dismiss) private var dismiss
@@ -12,13 +12,13 @@ struct SettingsOverlayView: View {
     @State private var devices: [AudioInputDevice] = []
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, cleanup, profile, system
+        case general, apiKeys, profile, system
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .general: return "General"
-            case .cleanup: return "Cleanup"
+            case .apiKeys: return "API Keys"
             case .profile: return "Profile"
             case .system: return "System"
             }
@@ -27,7 +27,7 @@ struct SettingsOverlayView: View {
         var icon: String {
             switch self {
             case .general: return "slider.horizontal.3"
-            case .cleanup: return "wand.and.sparkles"
+            case .apiKeys: return "key"
             case .profile: return "person.circle"
             case .system: return "macwindow"
             }
@@ -109,7 +109,7 @@ struct SettingsOverlayView: View {
             Form {
                 switch pane {
                 case .general: generalPane
-                case .cleanup: cleanupPane
+                case .apiKeys: apiKeysPane
                 case .profile: profilePane
                 case .system: systemPane
                 }
@@ -193,28 +193,44 @@ struct SettingsOverlayView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Cleanup (optional LLM pass, Spec 12 §G)
+    // MARK: - API Keys (optional LLM pass, Spec 13)
 
     @ViewBuilder
-    private var cleanupPane: some View {
+    private var apiKeysPane: some View {
         Section {
             Picker("Provider", selection: $app.llmProvider) {
                 ForEach(LLMProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider)
                 }
             }
-            SecureField("API key", text: $app.llmAPIKey, prompt: Text("Paste to enable"))
-            TextField("Model", text: $app.llmModel)
-            TextField("Endpoint", text: $app.llmBaseURL)
+            SecureField("API key", text: $app.llmAPIKey, prompt: Text("Paste to switch on"))
+            // Named providers have exactly one endpoint; only Custom needs it.
+            if app.llmProvider == .custom {
+                TextField("Server", text: $app.llmBaseURL)
+            }
         } header: {
-            Text("Transcript Cleanup")
+            Text("API Key")
         } footer: {
             Text(app.llmAPIKey.isEmpty
-                 ? "Off. Dictation stays entirely on this Mac — nothing leaves the device."
-                 : "On. Each dictation is sent to \(app.llmProvider.displayName) to resolve spoken corrections (\"email John, I mean Jenn\" → \"email Jenn\"), drop filler, and fix punctuation. Your transcripts leave this Mac while this is on. Clear the key to turn it off.")
+                 ? "Optional. Without a key, dictation stays entirely on this Mac and nothing is sent anywhere."
+                 : "Your dictation is sent to \(app.llmProvider.displayName) to be tidied up before it's pasted: filler words like \"um\" removed, punctuation fixed, and when you correct yourself mid-sentence — \"email John, I mean Jenn\" — only what you meant is kept. Delete the key to switch this off and go back to fully local dictation.")
         }
+        .onAppear { app.refreshLLMModels() }
 
         if !app.llmAPIKey.isEmpty {
+            Section {
+                Picker("Model", selection: $app.llmModel) {
+                    ForEach(app.llmModels, id: \.self) { model in
+                        Text(model).tag(model)
+                    }
+                }
+                .disabled(app.llmModels.isEmpty)
+            } footer: {
+                Text(app.llmModels.isEmpty
+                     ? "No models loaded — check the API key above."
+                     : "Loaded from \(app.llmProvider.displayName), so the names are always theirs. Smaller models finish faster, and this runs before every paste.")
+            }
+
             Section {
                 if let error = app.llmError {
                     Label(error, systemImage: "exclamationmark.triangle")
@@ -228,7 +244,7 @@ struct SettingsOverlayView: View {
             } header: {
                 Text("Status")
             } footer: {
-                Text("Cleanup gets \(Int(LLMCleanup.timeout)) seconds. If it fails or times out, the original transcript is pasted instead — a dictation is never lost to this.")
+                Text("This gets \(Int(LLMCleanup.timeout)) seconds. If it fails or times out, your original dictation is pasted instead — nothing is ever lost to this.")
             }
         }
     }

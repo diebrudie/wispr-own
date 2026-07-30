@@ -9,32 +9,52 @@ import Security
 /// this file never runs and the app stays local-only.
 enum LLMProvider: String, CaseIterable, Identifiable, Sendable {
     case anthropic
-    case openAICompatible
+    case openAI
+    case grok
+    /// Anything else speaking OpenAI's shape — Groq, OpenRouter, a local
+    /// Ollama. The only case where the endpoint is the user's to set.
+    case custom
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .anthropic: return "Anthropic"
-        case .openAICompatible: return "OpenAI-compatible"
+        case .openAI: return "OpenAI"
+        case .grok: return "Grok (xAI)"
+        case .custom: return "Custom (OpenAI-compatible)"
         }
     }
 
-    /// OpenAI's `/chat/completions` shape is what Grok, Groq, OpenRouter, and
-    /// local Ollama all speak — one code path covers "any provider".
+    /// Request/response shape. Everything except Anthropic speaks OpenAI's
+    /// `/chat/completions`, so two wire formats cover every provider.
+    enum Wire { case anthropic, openAI }
+
+    var wire: Wire { self == .anthropic ? .anthropic : .openAI }
+
+    /// API root. Endpoints hang off it uniformly, so the UI only ever needs to
+    /// expose this one value — and only for `.custom`.
     var defaultBaseURL: String {
         switch self {
-        case .anthropic: return "https://api.anthropic.com/v1/messages"
-        case .openAICompatible: return "https://api.openai.com/v1/chat/completions"
+        case .anthropic: return "https://api.anthropic.com/v1"
+        case .openAI: return "https://api.openai.com/v1"
+        case .grok: return "https://api.x.ai/v1"
+        case .custom: return "http://localhost:11434/v1" // Ollama's default
         }
     }
 
-    var defaultModel: String {
+    /// Shown until the provider's own model list loads, and used when a key
+    /// isn't stored yet.
+    var fallbackModels: [String] {
         switch self {
-        case .anthropic: return "claude-opus-5"
-        case .openAICompatible: return "gpt-5"
+        case .anthropic: return ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"]
+        case .openAI: return ["gpt-5"]
+        case .grok: return ["grok-4"]
+        case .custom: return []
         }
     }
+
+    var defaultModel: String { fallbackModels.first ?? "" }
 }
 
 /// API keys live in the Keychain, never in `UserDefaults` — one key per
@@ -118,9 +138,16 @@ enum LLMCleanup {
         return prompt
     }
 
+    /// `https://host/v1` + `/messages` — trailing slashes in a hand-typed
+    /// custom base URL would otherwise produce `//messages`.
+    private static func endpoint(_ base: String, _ path: String) -> URL? {
+        URL(string: base.trimmingCharacters(in: CharacterSet(charactersIn: " /")) + path)
+    }
+
     static func clean(_ text: String, config: LLMConfig) async -> CleanupOutcome {
-        guard let url = URL(string: config.baseURL) else {
-            return .failed("Invalid base URL")
+        let path = config.provider.wire == .anthropic ? "/messages" : "/chat/completions"
+        guard let url = endpoint(config.baseURL, path) else {
+            return .failed("Invalid endpoint")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -128,8 +155,8 @@ enum LLMCleanup {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let system = systemPrompt(glossary: config.glossary)
-        let body: [String: Any]
-        switch config.provider {
+        var body: [String: Any]
+        switch config.provider.wire {
         case .anthropic:
             request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -141,7 +168,7 @@ enum LLMCleanup {
                 // Cleanup is shallow work; low effort keeps the paste quick.
                 "output_config": ["effort": "low"],
             ]
-        case .openAICompatible:
+        case .openAI:
             request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
             // No token cap: the parameter name differs across OpenAI-compatible
             // servers, and cleanup output is bounded by the input anyway.
@@ -153,31 +180,95 @@ enum LLMCleanup {
                 ],
             ]
         }
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
         let start = DispatchTime.now()
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            dlog("cleanup: \(error.localizedDescription), keeping raw transcript")
-            return .failed(error.localizedDescription)
+        /// Returns the body on success, or a human-readable reason on failure.
+        func send() async -> (data: Data?, error: String?) {
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, http.statusCode != 200 else {
+                    return (data, nil)
+                }
+                return (nil, apiErrorMessage(data) ?? "HTTP \(http.statusCode)")
+            } catch {
+                return (nil, error.localizedDescription)
+            }
         }
 
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            let detail = apiErrorMessage(data) ?? "HTTP \(http.statusCode)"
-            dlog("cleanup: \(detail), keeping raw transcript")
-            return .failed(detail)
+        var data: Data
+        switch await send() {
+        case (let ok?, _):
+            data = ok
+        case (_, let message):
+            let message = message ?? "Unknown error"
+            // `effort` is a speed hint, and older models (Haiku 4.5, Sonnet 4.5)
+            // reject it outright. Since the model now comes from a picker, that
+            // is an easy choice to make — so drop the hint and retry once rather
+            // than fail a dictation over it.
+            guard body["output_config"] != nil else {
+                dlog("cleanup: \(message), keeping raw transcript")
+                return .failed(message)
+            }
+            body["output_config"] = nil
+            dlog("cleanup: \(message) — retrying without the effort hint")
+            let retry = await send()
+            guard let ok = retry.data else {
+                let retryMessage = retry.error ?? "Unknown error"
+                dlog("cleanup: \(retryMessage), keeping raw transcript")
+                return .failed(retryMessage)
+            }
+            data = ok
         }
 
-        let outcome = config.provider == .anthropic ? parseAnthropic(data) : parseOpenAI(data)
+        let outcome = config.provider.wire == .anthropic ? parseAnthropic(data) : parseOpenAI(data)
         let ms = Int((DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000)
         switch outcome {
         case .cleaned: dlog("cleanup: \(ms) ms via \(config.model)")
         case .failed(let message): dlog("cleanup: \(message), keeping raw transcript")
         }
         return outcome
+    }
+
+    // MARK: - Model list
+
+    /// Populates the Settings model picker from the provider itself, so the
+    /// names are always current and can't be mistyped. Both wire formats return
+    /// `{"data": [{"id": …}]}`, so one parser covers every provider.
+    /// Returns the provider's fallback list if the call fails.
+    static func models(config: LLMConfig) async -> [String] {
+        guard let url = endpoint(config.baseURL, "/models") else {
+            return config.provider.fallbackModels
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        switch config.provider.wire {
+        case .anthropic:
+            request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .openAI:
+            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else {
+            dlog("models: fetch failed, using built-in list")
+            return config.provider.fallbackModels
+        }
+        let ids = parseModels(data)
+        dlog("models: \(ids.count) from \(config.provider.displayName)")
+        return ids.isEmpty ? config.provider.fallbackModels : ids
+    }
+
+    static func parseModels(_ data: Data) -> [String] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entries = json["data"] as? [[String: Any]] else { return [] }
+        // ponytail: prefix/substring deny-list, because OpenAI's catalogue also
+        // carries image, audio, and embedding models that can't answer a chat
+        // request. Extend the list if something useful gets filtered out.
+        let notChat = ["embed", "tts", "whisper", "dall-e", "moderation", "audio", "image", "realtime", "search"]
+        return entries
+            .compactMap { $0["id"] as? String }
+            .filter { id in !notChat.contains { id.lowercased().contains($0) } }
+            .sorted()
     }
 
     // MARK: - Response parsing (covered by `WisprOwn --selftest`)

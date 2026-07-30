@@ -67,6 +67,15 @@ enum TranscribeCLI {
                 == "invalid x-api-key", "api error message")
         precondition(
             LLMCleanup.systemPrompt(glossary: ["Bruda"]).contains("Bruda"), "glossary in prompt")
+
+        // Model picker: one parser for both wire formats, non-chat models out.
+        precondition(
+            LLMCleanup.parseModels(json(#"{"data":[{"id":"claude-opus-5"},{"id":"claude-haiku-4-5"}]}"#))
+                == ["claude-haiku-4-5", "claude-opus-5"], "anthropic model list, sorted")
+        precondition(
+            LLMCleanup.parseModels(json(#"{"data":[{"id":"gpt-5"},{"id":"text-embedding-3-small"},{"id":"dall-e-3"}]}"#))
+                == ["gpt-5"], "non-chat models filtered")
+        precondition(LLMCleanup.parseModels(json("nope")).isEmpty, "malformed model list")
         print("selftest: cleanup parsing ok")
         _exit(0)
     }

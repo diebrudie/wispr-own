@@ -93,22 +93,50 @@ final class AppState: ObservableObject {
             llmModel = UserDefaults.standard.string(forKey: modelKey) ?? llmProvider.defaultModel
             llmBaseURL = UserDefaults.standard.string(forKey: baseURLKey) ?? llmProvider.defaultBaseURL
             llmAPIKey = LLMKeychain.read(llmProvider.rawValue) ?? ""
+            llmModels = llmProvider.fallbackModels
+            refreshLLMModels()
         }
     }
     @Published var llmModel: String {
         didSet { UserDefaults.standard.set(llmModel, forKey: modelKey) }
     }
+    /// Only user-visible for `.custom` — every named provider has one URL.
     @Published var llmBaseURL: String {
         didSet { UserDefaults.standard.set(llmBaseURL, forKey: baseURLKey) }
     }
-    /// Mirrors the Keychain entry so SwiftUI can bind to it. Cleanup is on
-    /// exactly when this is non-empty — clearing the field deletes the key.
+    /// Mirrors the Keychain entry so SwiftUI can bind to it. The cleanup pass
+    /// runs exactly when this is non-empty — clearing the field deletes the key.
     @Published var llmAPIKey: String {
-        didSet { LLMKeychain.save(llmAPIKey, account: llmProvider.rawValue) }
+        didSet {
+            LLMKeychain.save(llmAPIKey, account: llmProvider.rawValue)
+            refreshLLMModels()
+        }
     }
-    /// Last cleanup failure, shown in Settings. A silent fallback to the raw
-    /// transcript would otherwise look like the feature just doesn't work.
+    /// Fetched from the provider so the picker shows their names, not mine.
+    @Published var llmModels: [String] = []
+    /// Last failure, shown in Settings. A silent fallback to the raw transcript
+    /// would otherwise look like the feature just doesn't work.
     @Published var llmError: String?
+
+    /// Reloads the model picker. Cheap and idempotent — safe to call on every
+    /// key edit and whenever Settings opens.
+    func refreshLLMModels() {
+        guard let config = llmConfig else {
+            llmModels = llmProvider.fallbackModels
+            return
+        }
+        Task { [weak self] in
+            let ids = await LLMCleanup.models(config: config)
+            guard let self, self.llmConfig?.apiKey == config.apiKey else { return }
+            self.llmModels = ids
+            // A model saved earlier may not exist any more — don't leave the
+            // picker pointing at something the provider would reject.
+            if !ids.isEmpty, !ids.contains(self.llmModel) {
+                self.llmModel = ids.contains(self.llmProvider.defaultModel)
+                    ? self.llmProvider.defaultModel : ids[0]
+            }
+        }
+    }
 
     private var modelKey: String { "llmModel.\(llmProvider.rawValue)" }
     private var baseURLKey: String { "llmBaseURL.\(llmProvider.rawValue)" }
@@ -169,6 +197,7 @@ final class AppState: ObservableObject {
         llmBaseURL = UserDefaults.standard.string(forKey: "llmBaseURL.\(provider.rawValue)")
             ?? provider.defaultBaseURL
         llmAPIKey = LLMKeychain.read(provider.rawValue) ?? ""
+        llmModels = provider.fallbackModels
 
         appearance.apply()
 
