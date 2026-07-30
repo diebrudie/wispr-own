@@ -207,6 +207,43 @@ enum TranscribeCLI {
         _exit(0)
     }
 
+    /// `WisprOwn --llm-test` — exercises the stored key against the configured
+    /// provider and prints exactly what came back. "Not found" in Settings says
+    /// nothing about *why*; this does. The key itself is never printed.
+    static func llmTest() {
+        setvbuf(stdout, nil, _IONBF, 0)
+        let defaults = UserDefaults.standard
+        let provider = defaults.string(forKey: "llmProvider")
+            .flatMap(LLMProvider.init(rawValue:)) ?? .anthropic
+        let model = defaults.string(forKey: "llmModel.\(provider.rawValue)") ?? provider.defaultModel
+        let base = defaults.string(forKey: "llmBaseURL.\(provider.rawValue)") ?? provider.defaultBaseURL
+        let key = LLMKeychain.read(provider.rawValue) ?? ""
+
+        print("provider:  \(provider.displayName)")
+        print("endpoint:  \(base)")
+        print("model:     \(model)")
+        print("key:       \(key.isEmpty ? "MISSING" : "present (\(key.count) chars, ends …\(key.suffix(4)))")")
+        print("enabled:   \(defaults.object(forKey: "llmEnabled") as? Bool ?? true)")
+        guard !key.isEmpty else { _exit(1) }
+
+        let config = LLMConfig(provider: provider, model: model, baseURL: base,
+                               apiKey: key, glossary: [])
+        let done = DispatchSemaphore(value: 0)
+        Task {
+            let models = await LLMCleanup.models(config: config)
+            print("models:    \(models.count) returned\(models.isEmpty ? "" : ", e.g. \(models.prefix(4).joined(separator: ", "))")")
+            print("in list:   \(models.contains(model) ? "yes" : "NO — this model is not one the key can use")")
+
+            switch await LLMCleanup.clean("um so I wanted to to email John, I mean Jenn about the thing", config: config) {
+            case .cleaned(let text): print("cleanup:   OK → \(text)")
+            case .failed(let message): print("cleanup:   FAILED → \(message)")
+            }
+            done.signal()
+        }
+        done.wait()
+        _exit(0)
+    }
+
     static func run(path: String) {
         // Unbuffered stdout: we exit via _exit(), which skips stream flushing.
         setvbuf(stdout, nil, _IONBF, 0)

@@ -90,6 +90,7 @@ final class AppState: ObservableObject {
     @Published var llmProvider: LLMProvider {
         didSet {
             UserDefaults.standard.set(llmProvider.rawValue, forKey: "llmProvider")
+            llmError = nil // a settings change invalidates the last failure
             // Each provider keeps its own model, endpoint, and key.
             llmModel = UserDefaults.standard.string(forKey: modelKey) ?? llmProvider.defaultModel
             llmBaseURL = UserDefaults.standard.string(forKey: baseURLKey) ?? llmProvider.defaultBaseURL
@@ -99,17 +100,24 @@ final class AppState: ObservableObject {
         }
     }
     @Published var llmModel: String {
-        didSet { UserDefaults.standard.set(llmModel, forKey: modelKey) }
+        didSet {
+            UserDefaults.standard.set(llmModel, forKey: modelKey)
+            llmError = nil // a settings change invalidates the last failure
+        }
     }
     /// Only user-visible for `.custom` — every named provider has one URL.
     @Published var llmBaseURL: String {
-        didSet { UserDefaults.standard.set(llmBaseURL, forKey: baseURLKey) }
+        didSet {
+            UserDefaults.standard.set(llmBaseURL, forKey: baseURLKey)
+            llmError = nil // a settings change invalidates the last failure
+        }
     }
     /// Mirrors the Keychain entry so SwiftUI can bind to it. The cleanup pass
     /// runs exactly when this is non-empty — clearing the field deletes the key.
     @Published var llmAPIKey: String {
         didSet {
             LLMKeychain.save(llmAPIKey, account: llmProvider.rawValue)
+            llmError = nil // a new key invalidates the last failure
             refreshLLMModels()
         }
     }
@@ -117,7 +125,10 @@ final class AppState: ObservableObject {
     /// decisions — this is how cleanup gets turned off for a few dictations
     /// without pasting the key back in afterwards.
     @Published var llmEnabled: Bool {
-        didSet { UserDefaults.standard.set(llmEnabled, forKey: "llmEnabled") }
+        didSet {
+            UserDefaults.standard.set(llmEnabled, forKey: "llmEnabled")
+            llmError = nil
+        }
     }
     /// Fetched from the provider so the picker shows their names, not mine.
     @Published var llmModels: [String] = []

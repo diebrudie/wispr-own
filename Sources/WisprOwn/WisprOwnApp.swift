@@ -25,6 +25,10 @@ enum Entry {
             }
             return
         }
+        if CommandLine.arguments.contains("--llm-test") {
+            MainActor.assumeIsolated { TranscribeCLI.llmTest() }
+            return
+        }
         if CommandLine.arguments.contains("--selftest") {
             TranscribeCLI.selfTest()
             return

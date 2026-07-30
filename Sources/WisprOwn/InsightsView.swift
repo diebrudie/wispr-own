@@ -43,22 +43,26 @@ struct InsightsContent: View {
                 Card("Words per day", subtitle: "Last 30 days") {
                     WordsPerDayChart(days: analytics.perDay)
                 }
+                // Both cards take the height of the taller one, so a row reads
+                // as a row rather than two cards that happen to be adjacent.
                 HStack(alignment: .top, spacing: 20) {
-                    Card("When you dictate", subtitle: "Dictations by hour") {
+                    Card("When you dictate", subtitle: "Dictations by hour", stretch: true) {
                         ByHourChart(hours: analytics.perHour)
                     }
-                    Card("Where it lands", subtitle: "Top apps") {
+                    Card("Where it lands", subtitle: "Top apps", stretch: true) {
                         RankedBars(buckets: Array(analytics.perApp.prefix(6)),
                                    total: analytics.dictations,
                                    label: InsightsContent.appName,
                                    icon: InsightsContent.appIcon)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 // Side by side when there's room, stacked when there isn't.
                 // Full-bleed cards make the eye travel the whole window for
                 // one short row of information.
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 20) { streakCard; languagesCard }
+                        .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 20) { streakCard; languagesCard }
                 }
             }
@@ -70,13 +74,13 @@ struct InsightsContent: View {
     private var streakCard: some View {
         Card("\(analytics.currentStreak) day streak",
              subtitle: "Longest run: \(analytics.longestStreak) days",
-             titleSize: 22) {
+             titleSize: 22, stretch: true) {
             ActivityCalendar(days: analytics.calendar)
         }
     }
 
     private var languagesCard: some View {
-        Card("Languages", subtitle: "Share of dictations") {
+        Card("Languages", subtitle: "Share of dictations", stretch: true) {
             RankedBars(buckets: analytics.perLanguage,
                        total: analytics.dictations,
                        label: InsightsContent.languageName)
@@ -543,18 +547,20 @@ private struct Card<Content: View>: View {
     let title: String
     let subtitle: String?
     var titleSize: CGFloat = 17
+    var stretch = false
     @ViewBuilder let content: Content
 
     init(_ title: String, subtitle: String?, titleSize: CGFloat = 17,
-         @ViewBuilder content: () -> Content) {
+         stretch: Bool = false, @ViewBuilder content: () -> Content) {
         self.title = title
         self.subtitle = subtitle
         self.titleSize = titleSize
+        self.stretch = stretch
         self.content = content()
     }
 
     var body: some View {
-        CardShell {
+        CardShell(stretch: stretch) {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.system(size: titleSize, weight: .semibold))
