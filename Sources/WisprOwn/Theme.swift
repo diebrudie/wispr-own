@@ -18,6 +18,23 @@ enum Theme {
     static let accentDeep = Color(red: 0.16, green: 0.08, blue: 0.38)
     static let accentFixed = Color(red: 0.35, green: 0.20, blue: 0.75)
 
+    /// Fill for chart marks — a different job from `accent`, which is a *text*
+    /// colour. The dark accent is deliberately light so text clears WCAG-AA on
+    /// the dark surface (L 0.765), and a fill that light glares as a bar; the
+    /// data-viz lightness band for dark marks is L 0.48–0.67. This step sits
+    /// inside it and still clears 3:1 against the card surface. Both values are
+    /// validator-checked, not eyeballed — see spec 14.
+    static let chartMark = dynamic(
+        light: NSColor(red: 0.31, green: 0.18, blue: 0.72, alpha: 1), // #4F2EB8, L 0.43
+        dark: NSColor(red: 0.545, green: 0.435, blue: 0.910, alpha: 1) // #8B6FE8, L 0.60
+    )
+
+    /// Recessive fill for the unfilled part of a proportion bar.
+    static let chartTrack = dynamic(
+        light: NSColor(red: 0.31, green: 0.18, blue: 0.72, alpha: 0.10),
+        dark: NSColor(white: 1, alpha: 0.10)
+    )
+
     /// Subtle fill for badges and selected chips.
     static let tintedFill = dynamic(
         light: NSColor(red: 0.31, green: 0.18, blue: 0.72, alpha: 0.10),

@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import SwiftUI
 
 /// Headless pipeline check: `WisprOwn --transcribe <audio-file>`.
 /// Loads the model, transcribes one file, prints the result, exits.
@@ -117,6 +118,41 @@ enum TranscribeCLI {
                 before: "a b c d", after: "Ay Bee Cee Dee", known: [], isUnknown: { _ in true }
             ).count == TermLearner.maxPerEdit, "a rewrite can't flood the dictionary")
         print("selftest: dictionary learning ok")
+        _exit(0)
+    }
+
+    /// `WisprOwn --snapshot <path.png> [dark]` — renders the Analytics screen
+    /// off-screen against the real history. Layout bugs (collisions, overflow,
+    /// clipped labels) don't show up in a build or a colour check; this is how
+    /// they get seen without a GUI session.
+    @MainActor
+    static func snapshot(path: String, dark: Bool) {
+        setvbuf(stdout, nil, _IONBF, 0)
+        guard let store = try? HistoryStore() else {
+            print("error: cannot open history")
+            _exit(1)
+        }
+        // Theme colours resolve through NSAppearance, so the mode has to be set
+        // on the app, not via SwiftUI's colorScheme.
+        let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
+        NSApplication.shared.appearance = appearance
+        let view = AnalyticsContent(analytics: store.analytics())
+            .frame(width: 900, height: 1120)
+            .environment(\.colorScheme, dark ? .dark : .light)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        // Theme's dynamic NSColors resolve against the *current drawing*
+        // appearance; setting it on NSApp alone leaves the render in light mode.
+        var rendered: NSImage?
+        appearance.performAsCurrentDrawingAppearance { rendered = renderer.nsImage }
+        guard let image = rendered,
+              let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
+            print("error: render failed")
+            _exit(1)
+        }
+        try? png.write(to: URL(fileURLWithPath: path))
+        print("snapshot: \(path) (\(dark ? "dark" : "light"))")
         _exit(0)
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The hub window: sidebar (Home, Dictionary) + detail, Settings as a
+/// The hub window: sidebar (Home, Analytics, Dictionary) + detail, Settings as a
 /// sheet overlay — mirroring the Wispr Flow layout, violet-themed.
 struct MainWindowView: View {
     @ObservedObject var app: AppState
@@ -9,12 +9,13 @@ struct MainWindowView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     enum Screen: String, CaseIterable, Identifiable {
-        case home, dictionary
+        case home, analytics, dictionary
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .home: return "Home"
+            case .analytics: return "Analytics"
             case .dictionary: return "Dictionary"
             }
         }
@@ -22,6 +23,7 @@ struct MainWindowView: View {
         var icon: String {
             switch self {
             case .home: return "square.grid.2x2"
+            case .analytics: return "chart.bar"
             case .dictionary: return "character.book.closed"
             }
         }
@@ -47,6 +49,7 @@ struct MainWindowView: View {
             Group {
                 switch selection {
                 case .home: HomeView(app: app)
+                case .analytics: AnalyticsView(app: app)
                 case .dictionary: DictionaryView(app: app)
                 }
             }

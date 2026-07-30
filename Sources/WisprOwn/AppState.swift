@@ -42,6 +42,7 @@ final class AppState: ObservableObject {
     @Published var phase: AppPhase = .startingUp
     @Published var recentTranscripts: [Transcript] = []
     @Published var stats = HistoryStore.Stats()
+    @Published var analytics = HistoryStore.Analytics()
     @Published var dictionary: [HistoryStore.DictionaryEntry] = []
     @Published var searchQuery: String = "" {
         didSet { refreshRecent() }
@@ -376,6 +377,12 @@ final class AppState: ObservableObject {
             ? (history?.recent(limit: 20) ?? [])
             : (history?.search(q) ?? [])
         stats = history?.stats() ?? HistoryStore.Stats()
+    }
+
+    /// Recomputed when the Analytics screen appears rather than after every
+    /// dictation — it's a full scan, and nothing is watching it in the background.
+    func refreshAnalytics() {
+        analytics = history?.analytics() ?? HistoryStore.Analytics()
     }
 
     func deleteTranscript(_ transcript: Transcript) {

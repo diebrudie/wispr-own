@@ -17,6 +17,14 @@ enum Entry {
             TranscribeCLI.printStats()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--snapshot"),
+           CommandLine.arguments.count > index + 1 {
+            MainActor.assumeIsolated {
+                TranscribeCLI.snapshot(path: CommandLine.arguments[index + 1],
+                                       dark: CommandLine.arguments.contains("dark"))
+            }
+            return
+        }
         if CommandLine.arguments.contains("--selftest") {
             TranscribeCLI.selfTest()
             return
