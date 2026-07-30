@@ -113,6 +113,12 @@ final class AppState: ObservableObject {
             refreshLLMModels()
         }
     }
+    /// Off switch that keeps the key. Storing the key and using it are separate
+    /// decisions — this is how cleanup gets turned off for a few dictations
+    /// without pasting the key back in afterwards.
+    @Published var llmEnabled: Bool {
+        didSet { UserDefaults.standard.set(llmEnabled, forKey: "llmEnabled") }
+    }
     /// Fetched from the provider so the picker shows their names, not mine.
     @Published var llmModels: [String] = []
     /// Last failure, shown in Settings. A silent fallback to the raw transcript
@@ -122,13 +128,20 @@ final class AppState: ObservableObject {
     /// Reloads the model picker. Cheap and idempotent — safe to call on every
     /// key edit and whenever Settings opens.
     func refreshLLMModels() {
-        guard let config = llmConfig else {
+        let key = llmAPIKey.trimmingCharacters(in: .whitespaces)
+        let config = key.isEmpty ? nil : LLMConfig(
+            provider: llmProvider, model: llmModel, baseURL: llmBaseURL,
+            apiKey: key, glossary: []
+        )
+        guard let config else {
             llmModels = llmProvider.fallbackModels
             return
         }
         Task { [weak self] in
             let ids = await LLMCleanup.models(config: config)
-            guard let self, self.llmConfig?.apiKey == config.apiKey else { return }
+            guard let self,
+                  self.llmAPIKey.trimmingCharacters(in: .whitespaces) == config.apiKey
+            else { return }
             self.llmModels = ids
             // A model saved earlier may not exist any more — don't leave the
             // picker pointing at something the provider would reject.
@@ -144,7 +157,7 @@ final class AppState: ObservableObject {
 
     var llmConfig: LLMConfig? {
         let key = llmAPIKey.trimmingCharacters(in: .whitespaces)
-        guard !key.isEmpty else { return nil }
+        guard llmEnabled, !key.isEmpty else { return nil }
         return LLMConfig(
             provider: llmProvider,
             model: llmModel,
@@ -199,6 +212,7 @@ final class AppState: ObservableObject {
             ?? provider.defaultBaseURL
         llmAPIKey = LLMKeychain.read(provider.rawValue) ?? ""
         llmModels = provider.fallbackModels
+        llmEnabled = UserDefaults.standard.object(forKey: "llmEnabled") as? Bool ?? true
 
         appearance.apply()
 

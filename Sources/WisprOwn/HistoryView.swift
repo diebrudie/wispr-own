@@ -264,7 +264,7 @@ private struct EditTranscriptSheet: View {
                     onSave(text)
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }

@@ -35,6 +35,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 show ? self?.flowBarPanel?.orderFrontRegardless() : self?.flowBarPanel?.orderOut(nil)
             }
             .store(in: &cancellables)
+
+        // Switching Space or activating another app can drop the panel behind
+        // whatever is now frontmost, so re-assert it on every phase change —
+        // which includes the moment recording starts.
+        appState.$phase
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.appState.showFlowBar else { return }
+                self.flowBarPanel?.orderFrontRegardless()
+            }
+            .store(in: &cancellables)
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.appState.showFlowBar else { return }
+                self.flowBarPanel?.orderFrontRegardless()
+            }
+        }
     }
 
     // MARK: - WisprOwn bar (floating bottom panel)
@@ -49,13 +69,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         panel.isFloatingPanel = true
-        panel.level = .statusBar
+        // Above the menu bar and other apps' floating panels. .statusBar sat
+        // below full-screen windows and some overlays, so the bar vanished
+        // exactly when it was most needed — mid-dictation over another app.
+        panel.level = .screenSaver
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.contentView = NSHostingView(rootView: FlowBarView(app: appState))
         positionFlowBar(panel)
         if appState.showFlowBar {

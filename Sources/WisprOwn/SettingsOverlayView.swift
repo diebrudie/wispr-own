@@ -219,12 +219,20 @@ struct SettingsOverlayView: View {
 
         if !app.llmAPIKey.isEmpty {
             Section {
+                Toggle("Tidy up my dictation", isOn: $app.llmEnabled)
+            } footer: {
+                Text(app.llmEnabled
+                     ? "On. Turn this off to dictate without sending anything — your key stays saved."
+                     : "Off. Nothing is sent anywhere; your key is still saved for when you want it back.")
+            }
+
+            Section {
                 Picker("Model", selection: $app.llmModel) {
                     ForEach(app.llmModels, id: \.self) { model in
                         Text(model).tag(model)
                     }
                 }
-                .disabled(app.llmModels.isEmpty)
+                .disabled(app.llmModels.isEmpty || !app.llmEnabled)
             } footer: {
                 Text(app.llmModels.isEmpty
                      ? "No models loaded — check the API key above."

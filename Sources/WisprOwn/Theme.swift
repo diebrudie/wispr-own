@@ -107,6 +107,26 @@ enum Theme {
     }
 }
 
+/// The app's primary action button: filled accent, white label, generous hit
+/// area. Previously every action was a default macOS bordered button, which
+/// disappeared into the page.
+struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(Theme.accentFixed.opacity(configuration.isPressed ? 0.8 : 1),
+                        in: RoundedRectangle(cornerRadius: 9))
+            .contentShape(RoundedRectangle(cornerRadius: 9))
+    }
+}
+
+extension ButtonStyle where Self == PrimaryButtonStyle {
+    static var primary: PrimaryButtonStyle { PrimaryButtonStyle() }
+}
+
 /// Flow-style page framing: content stops growing past a comfortable reading
 /// width and centres, rather than stretching edge to edge on a wide display —
 /// a row of text spanning 2000px is genuinely hard to track left to right.

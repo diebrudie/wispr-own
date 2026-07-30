@@ -46,15 +46,42 @@ struct DictionaryView: View {
             } label: {
                 Label("Add new", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
         }
     }
 
+    /// A card rather than a grey paragraph: as plain secondary text under the
+    /// title, this explanation reads as decoration and gets skipped, which is
+    /// how the page ends up feeling like a list with no purpose.
     @ViewBuilder
     private var explainer: some View {
-        Text("WisprOwn spells the way you do. Every word here is given to the transcriber as context, so personal names, company jargon, and product terms come out right.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("WisprOwn spells the way you do.")
+                .font(.system(size: 20, weight: .semibold))
+            Text("Every word here is handed to the transcriber as context, so your names, company jargon and product terms come out right — no more \u{201C}Gotar\u{201D} for \u{201C}Gothaer\u{201D}.")
+                .font(.system(size: 14))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("It also learns on its own: correct a word while editing a transcript and it lands here automatically.")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !app.dictionary.isEmpty {
+                HStack(spacing: 7) {
+                    ForEach(app.dictionary.prefix(5)) { entry in
+                        Text(entry.phrase)
+                            .font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 5)
+                            .background(Theme.cardBackground.opacity(0.85), in: Capsule())
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Theme.tintedFill, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
 
         if adding {
             HStack {
@@ -63,7 +90,7 @@ struct DictionaryView: View {
                     .focused($addFieldFocused)
                     .onSubmit(commitAdd)
                 Button("Add", action: commitAdd)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primary)
                     .disabled(newPhrase.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button("Cancel") {
                     adding = false
@@ -141,7 +168,7 @@ private struct DictionaryRow: View {
                 TextField("", text: $editText)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(onCommit)
-                Button("Save", action: onCommit).buttonStyle(.borderedProminent)
+                Button("Save", action: onCommit).buttonStyle(.primary)
                 Button("Cancel", action: onCancel)
             } else {
                 Text(entry.phrase)

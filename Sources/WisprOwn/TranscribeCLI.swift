@@ -118,6 +118,25 @@ enum TranscribeCLI {
                 before: "a b c d", after: "Ay Bee Cee Dee", known: [], isUnknown: { _ in true }
             ).count == TermLearner.maxPerEdit, "a rewrite can't flood the dictionary")
         print("selftest: dictionary learning ok")
+
+        // Hallucinated speaker labels. Whisper learned them from subtitles and
+        // opens transcripts with a name nobody said; dictation has one speaker,
+        // so a name-plus-colon at the very start is never real.
+        func strip(_ text: String) -> String { Transcriber.stripSpeakerLabel(text) }
+        precondition(
+            strip("Katerina Sánchez: Over explaining a bit") == "Over explaining a bit",
+            "accented two-word label")
+        precondition(strip("Kareemah Chau: So.") == "So.", "two-word label")
+        precondition(
+            strip("Dr. Ada King Lovelace: hello there") == "hello there", "three-word label")
+        precondition(strip("Note: buy milk") == "Note: buy milk", "single word is not a name")
+        precondition(strip("Warning: this is slow") == "Warning: this is slow", "not a name")
+        precondition(strip("Ada Lovelace:") == "Ada Lovelace:", "label with nothing behind it")
+        precondition(
+            strip("I told Ada Lovelace: hello") == "I told Ada Lovelace: hello",
+            "only strips at the very start")
+        precondition(strip("So I said yes") == "So I said yes", "no colon, untouched")
+        print("selftest: speaker-label stripping ok")
         _exit(0)
     }
 

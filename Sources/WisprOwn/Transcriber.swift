@@ -31,7 +31,13 @@ final class Transcriber {
             if length > 700 { break }
             terms.append(term)
         }
-        return "Glossary: " + terms.joined(separator: ", ") + "."
+        // A bare comma list, deliberately with no "Label:" prefix. Whisper's
+        // initial_prompt is a *continuation*: it carries on in whatever style
+        // the prompt establishes, so text like "Glossary: DKB." demonstrates
+        // the "Name: said something" subtitle format and invites the model to
+        // produce one. Speaker labels are already in its training data; there
+        // is no reason to hand it a template as well.
+        return terms.joined(separator: ", ") + "."
     }
 
     /// Loads the main model plus the tiny language-detection model.
@@ -142,6 +148,9 @@ final class Transcriber {
         params.translate = false
         params.no_timestamps = true
         params.n_threads = Int32(min(8, max(4, ProcessInfo.processInfo.activeProcessorCount - 2)))
+        // Suppress non-speech tokens — music notes, bracketed sound cues and
+        // similar subtitle furniture the model picked up from its training set.
+        params.suppress_nst = true
 
         let start = DispatchTime.now()
         let detected = detectLanguage(audio) // decision #4: auto-detect EN/DE/ES
@@ -181,13 +190,37 @@ final class Transcriber {
         return string.withCString { body($0) }
     }
 
-    /// Strips whitespace and non-speech markers like "[BLANK_AUDIO]" or "(wind blowing)".
+    /// Strips whitespace, non-speech markers like "[BLANK_AUDIO]" or
+    /// "(wind blowing)", and hallucinated speaker labels.
     static func cleaned(_ raw: String) -> String {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let markers = try! NSRegularExpression(pattern: #"[\[\(][^\]\)]*[\]\)]"#)
-        let range = NSRange(text.startIndex..., in: text)
-        text = markers.stringByReplacingMatches(in: text, range: range, withTemplate: "")
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        text = markers.stringByReplacingMatches(
+            in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
+        return stripSpeakerLabel(text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Whisper learned from subtitles, so it sometimes opens a transcript with a
+    /// speaker label for a person who was never mentioned — "Katerina Sánchez:
+    /// over explaining a bit". Dictation has exactly one speaker, so a name
+    /// followed by a colon at the very start is never something the user said.
+    ///
+    /// Two or more capitalised words are required before the colon, so ordinary
+    /// dictation like "Note: buy milk" or "Warning: this is slow" survives.
+    static func stripSpeakerLabel(_ text: String) -> String {
+        // Two to four capitalised words, then a colon. Two is the minimum so
+        // "Note:" and "Warning:" survive; four covers "Dr. Ada King Lovelace:".
+        let pattern = #"^\p{Lu}[\p{L}'’.\-]*(?:\s+\p{Lu}[\p{L}'’.\-]*){1,3}\s*:\s+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range, in: text)
+        else { return text }
+        let stripped = String(text[range.upperBound...])
+        // Only if something is left — "Ada Lovelace:" alone is more likely a
+        // real dictation than a label with nothing behind it.
+        guard !stripped.trimmingCharacters(in: .whitespaces).isEmpty else { return text }
+        dlog("whisper: dropped hallucinated speaker label \"\(text[range])\"")
+        return stripped
     }
 
     private func elapsedMs(since start: DispatchTime) -> Int {
