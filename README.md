@@ -35,7 +35,7 @@ Your audio is processed in memory and never written to disk or sent anywhere.
 | ⚡ | **Fast** | ~1 s from key-release to paste on Apple Silicon (measured on an M3) |
 | 🧾 | **Nothing gets lost** | Every transcript is saved to a local SQLite history *before* pasting |
 | 🖥️ | **Hub window** | Stats (words, WPM, streak), searchable history, copy / edit / delete any transcript |
-| 📊 | **Analytics** | Words per day, what time you dictate, which apps it lands in, language split, and time saved vs typing |
+| 📊 | **Insights** | Words per day, what time you dictate, which apps it lands in, language split, and time saved vs typing |
 | 📖 | **Dictionary** | Add your names & jargon — they bias the transcriber and come out spelled right. Correct a word in History and it's remembered automatically |
 | ✨ | **Optional cleanup** | Add your own LLM API key and dictation gets tidied before pasting — spoken self-corrections resolved, filler dropped. Off unless you add a key |
 | 〰️ | **Live bar** | A floating pill at the bottom of the screen shows a real waveform while you speak |
@@ -132,7 +132,7 @@ open dist/WisprOwn.app
 - **Settings** — the gear at the bottom of the hub window's sidebar (or ⌘,).
   Change the push-to-talk key, pick a microphone, enable more dictation
   languages, switch light/dark, or set the name used to greet you.
-- **Analytics** — words per day, what time of day you dictate, which apps your
+- **Insights** — words per day, what time of day you dictate, which apps your
   text lands in, your language split, and how much time it saved versus typing.
   Hover any bar for its exact value.
 - **Menu bar mic** shows live state: mic = ready · waveform = recording ·
@@ -219,7 +219,7 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 | [11](specs/11-flow-bar.md) | The floating WisprOwn bar |
 | [12](specs/12-future-features.md) | Backlog & future ideas |
 | [13](specs/13-llm-cleanup.md) | Optional LLM transcript cleanup |
-| [14](specs/14-analytics.md) | Analytics screen |
+| [14](specs/14-insights.md) | Insights screen |
 
 ---
 
@@ -232,7 +232,7 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 - [x] Optional LLM cleanup with your own API key (fixes spoken self-corrections; off by default)
 - [ ] Dictating over playing music or video without transcribing it
 - [x] Dictionary learns terms from your corrections in History
-- [x] Analytics screen (words per day, time of day, top apps, languages)
+- [x] Insights screen (words per day, time of day, top apps, languages, streak calendar)
 - [ ] UI localization (DE/ES)
 - [ ] Notarized release so no right-click-to-open is needed
 

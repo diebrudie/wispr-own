@@ -211,12 +211,25 @@ final class HistoryStore {
         var spokenSeconds = 0
         /// Time this saved versus typing the same words by hand.
         var savedSeconds = 0
+        var wordsPerMinute = 0
+        var currentStreak = 0
+        var longestStreak = 0
+        /// Change in words dictated, last 30 days against the 30 before them.
+        /// nil when there's no earlier period to compare against.
+        var trendPercent: Int?
         var perDay: [Day] = []
         var perHour: [Hour] = []
         var perApp: [Bucket] = []
         var perLanguage: [Bucket] = []
+        /// Dictations per day over ~15 weeks, for the activity calendar.
+        var calendar: [Day] = []
 
         var isEmpty: Bool { dictations == 0 }
+        var averageWords: Int { dictations == 0 ? 0 : words / dictations }
+        /// How much faster speaking is than typing, for this user's own pace.
+        var speedMultiple: Double {
+            wordsPerMinute == 0 ? 0 : Double(wordsPerMinute) / typingWordsPerMinute
+        }
     }
 
     /// Average sustained typing speed. The comparison is only as honest as this
@@ -234,6 +247,7 @@ final class HistoryStore {
 
         var result = Analytics()
         var wordsByDay: [String: Int] = [:]
+        var dictationsByDay: [String: Int] = [:]
         var countsByHour = [Int](repeating: 0, count: 24)
         var countsByApp: [String: Int] = [:]
         var countsByLanguage: [String: Int] = [:]
@@ -246,7 +260,9 @@ final class HistoryStore {
 
             // created_at is "yyyy-MM-ddTHH:mm:ss±ZZ:ZZ" in local time, so the
             // day and hour are fixed-width slices — no parsing needed.
-            wordsByDay[String(row.createdAt.prefix(10)), default: 0] += words
+            let day = String(row.createdAt.prefix(10))
+            wordsByDay[day, default: 0] += words
+            dictationsByDay[day, default: 0] += 1
             if let hour = Int(row.createdAt.dropFirst(11).prefix(2)), (0..<24).contains(hour) {
                 countsByHour[hour] += 1
             }
@@ -270,6 +286,54 @@ final class HistoryStore {
             return Analytics.Day(date: date, words: wordsByDay[formatter.string(from: date)] ?? 0)
         }
         result.perHour = (0..<24).map { Analytics.Hour(hour: $0, count: countsByHour[$0]) }
+
+        if result.spokenSeconds > 0 {
+            result.wordsPerMinute = Int((Double(result.words) / (Double(result.spokenSeconds) / 60)).rounded())
+        }
+
+        // Trend: this 30-day window against the 30 before it. A rolling window
+        // rather than calendar months, so an early-in-the-month view isn't
+        // compared against a full one.
+        func wordsBetween(_ from: Int, _ to: Int) -> Int {
+            (from..<to).reduce(0) { sum, offset in
+                guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return sum }
+                return sum + (wordsByDay[formatter.string(from: date)] ?? 0)
+            }
+        }
+        let recent = wordsBetween(0, days)
+        let previous = wordsBetween(days, days * 2)
+        if previous > 0 {
+            result.trendPercent = Int(((Double(recent) - Double(previous)) / Double(previous) * 100).rounded())
+        }
+
+        // Streaks over every day on record, not just the charted window.
+        let activeDays = Set(dictationsByDay.keys)
+        var cursor = today
+        if !activeDays.contains(formatter.string(from: cursor)) {
+            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+        }
+        while activeDays.contains(formatter.string(from: cursor)) {
+            result.currentStreak += 1
+            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+        }
+        var run = 0
+        for dayKey in activeDays.sorted() {
+            guard let date = formatter.date(from: dayKey) else { continue }
+            let previousKey = formatter.string(from: calendar.date(byAdding: .day, value: -1, to: date) ?? date)
+            run = activeDays.contains(previousKey) ? run + 1 : 1
+            result.longestStreak = max(result.longestStreak, run)
+        }
+
+        // Activity calendar: whole weeks, ending with the one containing today,
+        // so the grid always has square columns.
+        let weeks = 15
+        let weekday = calendar.component(.weekday, from: today) - calendar.firstWeekday
+        let daysIntoWeek = (weekday + 7) % 7
+        let span = daysIntoWeek + (weeks - 1) * 7
+        result.calendar = (0...span).reversed().compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            return Analytics.Day(date: date, words: dictationsByDay[formatter.string(from: date)] ?? 0)
+        }
         result.perApp = countsByApp
             .map { Analytics.Bucket(name: $0.key, count: $0.value) }
             .sorted { ($0.count, $1.name) > ($1.count, $0.name) }

@@ -121,7 +121,7 @@ enum TranscribeCLI {
         _exit(0)
     }
 
-    /// `WisprOwn --snapshot <path.png> [dark]` — renders the Analytics screen
+    /// `WisprOwn --snapshot <path.png> [dark]` — renders the Insights screen
     /// off-screen against the real history. Layout bugs (collisions, overflow,
     /// clipped labels) don't show up in a build or a colour check; this is how
     /// they get seen without a GUI session.
@@ -136,8 +136,8 @@ enum TranscribeCLI {
         // on the app, not via SwiftUI's colorScheme.
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
         NSApplication.shared.appearance = appearance
-        let view = AnalyticsContent(analytics: store.analytics())
-            .frame(width: 900, height: 1120)
+        let view = InsightsContent(analytics: store.analytics())
+            .frame(width: 940, height: 1560, alignment: .top)
             .environment(\.colorScheme, dark ? .dark : .light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2

@@ -1,6 +1,7 @@
-# Spec 14 — Analytics screen
+# Spec 14 — Insights screen
 
 Built 2026-07-30. Backlog origin: `specs/12-future-features.md` §C.
+Renamed from "Analytics" to "Insights" the same day, on request.
 
 ## Why
 
@@ -12,7 +13,8 @@ on Home. No new data is collected for this screen.
 
 | Panel | Question | Form |
 |---|---|---|
-| Four tiles | How much have I dictated, and what did it save me? | Numbers, not charts |
+| Three headline cards | How fast am I, how much have I done, what did it save? | Numbers, a gauge, a trend pill |
+| Streak calendar | How consistent am I? | GitHub-style grid, 15 weeks |
 | Words per day | Am I actually using this? | Bars on a date axis, last 30 days |
 | When you dictate | What time of day do I speak? | Bars by hour |
 | Where it lands | Which apps does this go into? | Ranked bars, named and numbered |
@@ -25,8 +27,18 @@ under the tile rather than presented as fact.
 
 ## Visual decisions
 
-- **Tiles, not charts, for single values.** A one-bar bar chart says less than
-  the number does.
+- **Cards, not charts, for single values.** A one-bar bar chart says less than
+  the number does. The headline row mixes forms deliberately — a gauge, a trend
+  pill, big numbers with supporting rows under a divider — so the screen has
+  some variety rather than five identical tiles.
+- **The headline row is equal-height.** `fixedSize(vertical:)` on the row plus a
+  stretching card shell: the row adopts its tallest card and the others fill to
+  match. Only that row stretches; elsewhere leftover window height would
+  otherwise be distributed into the cards as dead space.
+- **The speed gauge is drawn as a real arc**, not a trimmed-and-scaled `Circle`
+  — scaling a stroked shape squashes the stroke with it and the gauge becomes a
+  blob. Its 200 wpm ceiling is an arbitrary scale; the honest number is the
+  multiple beside it, which compares the user's speaking pace to their typing.
 - **One hue, no categorical palette.** Every panel is a single series — how much
   per bucket — so nothing needs colour to carry identity. That also means no
   legend anywhere: each panel's title names its series.
@@ -60,9 +72,20 @@ Recording permission, hence rendering rather than screenshotting; the split of
 `AnalyticsContent` (data in, layout out) from `AnalyticsView` (app-state
 plumbing) is what makes it renderable headlessly.
 
+## Snapshot limitations
+
+Large text on the plain window background ghosts in dark-mode renders. Both
+`.primary` and `.labelColor` behave the same way, while every explicitly-defined
+`Theme` colour resolves correctly — an ImageRenderer artifact, not a product
+bug. Light-mode renders show the title correctly. Content is top-aligned in the
+render frame; without that the whole page centres vertically and reads as if
+something is missing above it.
+
 ## Known gaps
 
 - The 30-day window is fixed — no range picker.
 - `analytics()` is a full table scan, run when the screen appears. Fine for a
   personal log; it would need real SQL aggregates at a much larger scale.
 - No CSV export.
+- The activity calendar has no month labels along the top.
+- The trend pill is hidden until there are two full 30-day periods to compare.

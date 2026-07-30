@@ -19,7 +19,7 @@ Encode audio while the user speaks so key-release → paste approaches Flow's ~0
 **Before optimizing, measure.** Log the budget per stage — recorder stop/flush (`AudioRecorder`), whisper.cpp encode + decode (`Transcriber`), paste (`Paster`) — and spend the effort where the time actually is. Streaming only helps the decode stage. Note §G puts a network call on this same path.
 
 ## C. Insights page
-**Built 2026-07-30 — see `specs/14-analytics.md`.** Shipped as the Analytics screen.
+**Built 2026-07-30 — see `specs/14-insights.md`.** Shipped as the Insights screen.
 
 ## D. UI localization (DE/ES)
 App interface currently English-only (dictation languages are unaffected).
