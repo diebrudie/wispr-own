@@ -386,8 +386,24 @@ final class AppState: ObservableObject {
     func updateTranscriptText(id: Int64, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let before = recentTranscripts.first { $0.id == id }?.text
         history?.updateText(id: id, text: trimmed)
+        if let before { learnTerms(from: before, to: trimmed) }
         refreshRecent()
+    }
+
+    /// Corrections the user types by hand are the best vocabulary signal there
+    /// is (spec 12 §E). Learned terms land in the Dictionary tab, so anything
+    /// picked up wrongly is visible and one click from deleted.
+    private func learnTerms(from before: String, to after: String) {
+        let terms = TermLearner.learnedTerms(
+            before: before, after: after, known: dictionary.map(\.phrase)
+        )
+        guard !terms.isEmpty else { return }
+        for term in terms where history?.dictionaryAdd(term) == true {
+            dlog("dictionary: learned \"\(term)\" from an edit")
+        }
+        refreshDictionary() // re-primes Whisper's glossary for the next dictation
     }
 
     // MARK: - Dictionary

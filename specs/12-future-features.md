@@ -25,13 +25,13 @@ Usage charts, WPM over time, streak heatmap (Flow's "Insights" screenshot). Data
 App interface currently English-only (dictation languages are unaffected).
 
 ## E. Dictionary auto-suggestions
-Surface words the transcriber seems unsure about, or that the user frequently edits, as dictionary candidates. Must not observe keystrokes in other apps — privacy line we don't cross.
+**Built 2026-07-30 — see the addendum in `specs/13-llm-cleanup.md`.** Learned from hand-edits in History; needs no API key.
 
 ## F. Public release hardening
 Apple Developer ID + notarization (removes the Gatekeeper right-click-open step), then flip the repo public. See `specs/07-packaging.md`.
 
 ## G. Optional LLM cleanup — bring your own API key
-**Built 2026-07-30 — see `specs/13-llm-cleanup.md`.** Off by default; opt in with an API key in Settings → Cleanup.
+**Built 2026-07-30 — see `specs/13-llm-cleanup.md`.** Off by default; opt in with an API key in Settings → API Keys.
 
 ## H. Dictating over playing audio — requested 2026-07-29
 With music or video playing, the mic picks up the speakers and Whisper transcribes them alongside the user. The app should recognise it's being spoken *to*.

@@ -81,3 +81,56 @@ which needs a paid API key.
 - No way to keep a key stored while temporarily disabling cleanup.
 - The dictionary is passed to the prompt as preferred spellings; it is not yet
   reconciled with Whisper's own glossary bias (spec 10), so both run.
+
+---
+
+# Addendum — Dictionary learning (spec 12 §E), built 2026-07-30
+
+Requested alongside the API key, on the assumption it needed one. It doesn't:
+the signal is the user's own correction, not a model. When a transcript is
+edited in History the app holds both the before and after text, so a word-level
+diff names the corrected term directly — free, instant, and working whether or
+not a key is set.
+
+## How a term is recognised
+
+`TermLearner.learnedTerms` diffs the two texts with the stdlib's
+`difference(from:)`. A *substitution* — a removal and an insertion at the same
+offset — is the shape of a correction; a pure insertion is the user adding
+words, so requiring both halves keeps ordinary edits out.
+
+A substituted word becomes a dictionary term when any of these hold:
+
+1. It has an internal capital — HubSpot, WisprOwn, McKinsey.
+2. It is capitalised and isn't the first word — a proper noun mid-sentence.
+3. The macOS spell checker doesn't know it — lowercase jargon like `kubectl`.
+
+Rule 2 was added after measuring the real checker: it accepts *any* capitalised
+word as a proper noun, so "Bruda" reads as ordinary to it. Rules 1 and 3 alone
+would have missed every name — the exact case this feature is for. The first
+version of the test passed only because the stub was more pessimistic than the
+system it stood in for.
+
+Learned terms are added silently, capped at 3 per edit so one rewrite can't
+flood the dictionary. They appear in the Dictionary tab, so anything picked up
+wrongly is visible and one click from deleted, and they re-prime Whisper's
+glossary for the next dictation.
+
+## Privacy
+
+Only edits made inside WisprOwn's own History view are read. Nothing observes
+typing in other apps — the line spec 12 §E drew is intact.
+
+## Verification
+
+`WisprOwn --selftest`: the HubSpot case end to end, a mid-sentence proper noun,
+lowercase jargon, an ordinary typo fix producing nothing, a term already in the
+dictionary, added words, a punctuation-only edit, two words collapsing into one
+term, and the per-edit cap. The spell-checker stub mirrors measured system
+behaviour rather than assumed behaviour.
+
+## Known gaps
+
+- Single words only. "HubSpot Workflows" as a phrase is not learned.
+- Silent — no confirmation that a term was picked up, beyond it appearing in the
+  Dictionary tab and a line in the log.

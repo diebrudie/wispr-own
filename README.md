@@ -30,12 +30,13 @@ Your audio is processed in memory and never written to disk or sent anywhere.
 |     | Feature | Detail |
 |-----|---------|--------|
 | 🎙️ | **Push-to-talk** | Hold **Left Option**, speak, release — text pastes at your cursor |
-| 🔒 | **100 % local** | whisper.cpp + CoreML on the Neural Engine; zero network calls after setup |
+| 🔒 | **Local by default** | whisper.cpp + CoreML on the Neural Engine; zero network calls after setup, unless you opt into cleanup below |
 | 🌍 | **Multilingual** | English, German, Spanish and 13 more — auto-detected per dictation |
 | ⚡ | **Fast** | ~1 s from key-release to paste on Apple Silicon (measured on an M3) |
 | 🧾 | **Nothing gets lost** | Every transcript is saved to a local SQLite history *before* pasting |
 | 🖥️ | **Hub window** | Stats (words, WPM, streak), searchable history, copy / edit / delete any transcript |
-| 📖 | **Dictionary** | Add your names & jargon — they bias the transcriber and come out spelled right |
+| 📖 | **Dictionary** | Add your names & jargon — they bias the transcriber and come out spelled right. Correct a word in History and it's remembered automatically |
+| ✨ | **Optional cleanup** | Add your own LLM API key and dictation gets tidied before pasting — spoken self-corrections resolved, filler dropped. Off unless you add a key |
 | 〰️ | **Live bar** | A floating pill at the bottom of the screen shows a real waveform while you speak |
 | 🎛️ | **Configurable** | Hotkey, microphone, languages, light/dark theme — all in Settings |
 | 📋 | **Clipboard-safe** | Whatever you had copied is restored ~1 s after each paste |
@@ -77,10 +78,15 @@ open dist/WisprOwn.app
 > If macOS asks for a password, it's your **Mac login password**. If a
 > `codesign wants to access key` dialog appears, click **Always Allow**.
 
-> #### 🔑 No accounts, no API keys
+> #### 🔑 No accounts required
 > Everything runs on-device. The only network activity is the one-time model
 > download from Hugging Face (public files, no authentication) — after that the
 > app works fully offline, even in airplane mode.
+>
+> The one exception is opt-in: add your own LLM API key under *Settings → API
+> Keys* and each transcript is sent to that provider to be tidied up before
+> pasting. Leave it empty — the default — and nothing ever leaves your Mac.
+> Your **audio** is never uploaded either way.
 
 ### First launch — what to expect
 
@@ -212,6 +218,7 @@ the [measurable quality gates](specs/08-evaluation.md) the app is tested against
 - [ ] Streaming transcription (encode while speaking → near-instant paste)
 - [x] Optional LLM cleanup with your own API key (fixes spoken self-corrections; off by default)
 - [ ] Dictating over playing music or video without transcribing it
+- [x] Dictionary learns terms from your corrections in History
 - [ ] Insights page (usage charts, streak heatmap)
 - [ ] UI localization (DE/ES)
 - [ ] Notarized release so no right-click-to-open is needed

@@ -77,6 +77,46 @@ enum TranscribeCLI {
                 == ["gpt-5"], "non-chat models filtered")
         precondition(LLMCleanup.parseModels(json("nope")).isEmpty, "malformed model list")
         print("selftest: cleanup parsing ok")
+
+        // Dictionary learning. The stub mirrors what the real macOS checker was
+        // measured to do — it accepts any capitalised word, so "Bruda" reads as
+        // ordinary and only lowercase jargon comes back unknown.
+        let unknown: (String) -> Bool = { ["kubectl", "diebrudie"].contains($0) }
+        func learned(_ before: String, _ after: String, known: [String] = []) -> [String] {
+            TermLearner.learnedTerms(before: before, after: after, known: known, isUnknown: unknown)
+        }
+        precondition(
+            learned("Send this to hupspot today", "Send this to HubSpot today") == ["HubSpot"],
+            "internal capital is a personal term")
+        precondition(
+            learned("Ask brooder about it", "Ask Bruda about it") == ["Bruda"],
+            "proper noun mid-sentence, which the system checker calls ordinary")
+        precondition(
+            learned("run cube control now", "run diebrudie now") == ["diebrudie"],
+            "lowercase jargon absent from the system dictionary")
+        precondition(
+            learned("Their car is red", "There car is red").isEmpty,
+            "capitalised first word is not treated as a name")
+        precondition(
+            learned("I sent teh email", "I sent the email").isEmpty,
+            "ordinary typo fix is not vocabulary")
+        precondition(
+            learned("Send this to hupspot", "Send this to HubSpot", known: ["HubSpot"]).isEmpty,
+            "already in the dictionary")
+        precondition(
+            learned("Call Bruda", "Call Bruda tomorrow morning").isEmpty,
+            "added words are not corrections")
+        precondition(
+            learned("Meeting with Jenn.", "Meeting with Jenn").isEmpty,
+            "punctuation-only edit changes nothing")
+        precondition(
+            learned("run kube control now", "run kubectl now") == ["kubectl"],
+            "two words collapsed into one term")
+        precondition(
+            TermLearner.learnedTerms(
+                before: "a b c d", after: "Ay Bee Cee Dee", known: [], isUnknown: { _ in true }
+            ).count == TermLearner.maxPerEdit, "a rewrite can't flood the dictionary")
+        print("selftest: dictionary learning ok")
         _exit(0)
     }
 
