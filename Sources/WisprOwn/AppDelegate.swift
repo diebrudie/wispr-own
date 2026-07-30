@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
         appState = AppState()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -87,6 +88,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             accessibilityDescription: "WisprOwn: \(phase.statusText)")
         image?.isTemplate = true
         statusItem.button?.image = image
+    }
+
+    // MARK: - Main menu
+
+    /// AppKit delivers ⌘X/⌘C/⌘V/⌘Z by matching the *main menu's* key
+    /// equivalents — the text field never sees the keystroke itself. Without an
+    /// Edit menu you can type into every field in the app but not paste into
+    /// one, which is fatal for an API key nobody memorises.
+    ///
+    /// Actions target nil so they travel the responder chain to whatever field
+    /// has focus. Menu titles come from AppKit's standard set so they localise
+    /// and behave the way macOS users expect.
+    private func setupMainMenu() {
+        let appName = ProcessInfo.processInfo.processName
+        let main = NSMenu()
+
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About \(appName)",
+                        action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+                        keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide \(appName)",
+                        action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Quit \(appName)",
+                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        // Plain selector strings: `cut:`/`copy:`/`paste:` live on NSText and
+        // friends, and #selector(NSText.copy(_:)) collides with NSObject.copy().
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: Selector(("cut:")), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: Selector(("copy:")), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: Selector(("paste:")), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: Selector(("selectAll:")), keyEquivalent: "a")
+
+        for submenu in [appMenu, editMenu] {
+            let item = NSMenuItem()
+            item.submenu = submenu
+            main.addItem(item)
+        }
+        NSApp.mainMenu = main
+
+        // Cheap startup assertion: if this ever stops finding Paste, every text
+        // field in the app has silently become type-only again.
+        let paste = editMenu.items.first { $0.keyEquivalent == "v" }
+        dlog("ui: edit menu installed, paste=\(paste != nil)")
     }
 
     private func rebuildMenu(for phase: AppPhase) {
