@@ -158,7 +158,7 @@ enum TranscribeCLI {
         let wide = CommandLine.arguments.contains("wide")
         let view = InsightsContent(analytics: store.analytics())
             .frame(width: wide ? 1500 : 980, height: 1400, alignment: .top)
-            .background(Theme.windowBackground)
+            .background(Theme.contentBackground)
             .environment(\.colorScheme, dark ? .dark : .light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2

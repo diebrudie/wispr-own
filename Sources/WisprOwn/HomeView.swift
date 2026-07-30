@@ -21,7 +21,7 @@ struct HomeView: View {
         .padding(24)
         .pageWidth()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.windowBackground)
+        .background(Color.clear)
         .onAppear { app.refreshRecent() }
     }
 }
@@ -37,7 +37,7 @@ private struct StatsCard: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(Theme.border, lineWidth: 1)

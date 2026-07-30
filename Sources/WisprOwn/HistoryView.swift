@@ -83,7 +83,7 @@ struct TranscriptList: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Theme.cardBackground, in: Capsule())
+            .background(Theme.insetCard, in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.border))
         } else {
             Button {
@@ -112,7 +112,7 @@ struct TranscriptList: View {
                 }
             }
         }
-        .background(Theme.cardBackground)
+        .background(Theme.insetCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
     }
@@ -126,7 +126,7 @@ struct TranscriptList: View {
                 : "No dictation contains “\(app.searchQuery)”.")
         )
         .frame(maxWidth: .infinity, minHeight: 240)
-        .background(Theme.cardBackground)
+        .background(Theme.insetCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -254,7 +254,7 @@ private struct EditTranscriptSheet: View {
                 .font(.body)
                 .scrollContentBackground(.hidden)
                 .padding(8)
-                .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+                .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 8))
                 .frame(minHeight: 140)
             HStack {
                 Spacer()

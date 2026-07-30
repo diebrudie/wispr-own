@@ -55,6 +55,12 @@ struct MainWindowView: View {
                 case .dictionary: DictionaryView(app: app)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.contentBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
+            .padding(EdgeInsets(top: 8, leading: 0, bottom: 10, trailing: 10))
+            .background(Theme.windowBackground)
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     Button {

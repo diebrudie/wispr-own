@@ -88,6 +88,20 @@ enum Theme {
         dark: NSColor(red: 0.153, green: 0.153, blue: 0.165, alpha: 1)
     )
 
+    /// The page container — Flow-style, the content sits on a light panel while
+    /// the sidebar merges into the window background behind it.
+    static let contentBackground = dynamic(
+        light: NSColor(red: 0.998, green: 0.996, blue: 0.99, alpha: 1),
+        dark: NSColor(red: 0.137, green: 0.137, blue: 0.149, alpha: 1)
+    )
+
+    /// Cards *inside* the content panel. They can't be the same near-white as
+    /// the panel or they vanish, so they step toward the warm page colour.
+    static let insetCard = dynamic(
+        light: NSColor(red: 0.957, green: 0.949, blue: 0.933, alpha: 1),
+        dark: NSColor(red: 0.196, green: 0.196, blue: 0.212, alpha: 1)
+    )
+
     /// Row highlight while hovering.
     static let rowHover = dynamic(
         light: NSColor(white: 0, alpha: 0.045),

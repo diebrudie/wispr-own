@@ -18,7 +18,7 @@ struct InsightsView: View {
         ScrollView {
             InsightsContent(analytics: app.analytics)
         }
-        .background(Theme.windowBackground)
+        .background(Color.clear)
         .onAppear { app.refreshAnalytics() }
     }
 }
@@ -513,7 +513,7 @@ private struct Callout: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+        .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border, lineWidth: 1))
         .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
         .padding(6)
@@ -534,7 +534,7 @@ private struct CardShell<Content: View>: View {
         content
             .frame(maxWidth: .infinity, maxHeight: stretch ? .infinity : nil, alignment: .topLeading)
             .padding(16)
-            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 14))
+            .background(Theme.insetCard, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.border, lineWidth: 1))
     }
 }
