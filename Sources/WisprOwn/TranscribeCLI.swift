@@ -92,6 +92,32 @@ enum TranscribeCLI {
         precondition(
             LLMCleanup.normalisedBase("http://localhost:11434/v1")
                 == "http://localhost:11434/v1", "already-correct base untouched")
+
+        // Every provider must resolve to its real endpoints, not just the one
+        // in use today. Anthropic speaks /messages, the rest OpenAI's shape.
+        precondition(
+            LLMCleanup.chatEndpoint(for: .anthropic) == "https://api.anthropic.com/v1/messages",
+            "anthropic chat endpoint")
+        precondition(
+            LLMCleanup.chatEndpoint(for: .openAI) == "https://api.openai.com/v1/chat/completions",
+            "openai chat endpoint")
+        precondition(
+            LLMCleanup.chatEndpoint(for: .grok) == "https://api.x.ai/v1/chat/completions",
+            "grok chat endpoint")
+        precondition(
+            LLMCleanup.chatEndpoint(for: .custom) == "http://localhost:11434/v1/chat/completions",
+            "custom (Ollama) chat endpoint")
+        precondition(
+            LLMCleanup.modelsEndpoint(for: .openAI) == "https://api.openai.com/v1/models",
+            "openai models endpoint")
+        precondition(
+            LLMCleanup.modelsEndpoint(for: .grok) == "https://api.x.ai/v1/models",
+            "grok models endpoint")
+        // A custom server given the full endpoint gets the same repair.
+        precondition(
+            LLMCleanup.chatEndpoint(for: .custom, base: "https://openrouter.ai/api/v1/chat/completions")
+                == "https://openrouter.ai/api/v1/chat/completions", "custom full endpoint normalised")
+        print("selftest: provider endpoints ok")
         print("selftest: cleanup parsing ok")
 
         // Dictionary learning. The stub mirrors what the real macOS checker was

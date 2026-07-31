@@ -155,8 +155,19 @@ enum LLMCleanup {
         return trimmed
     }
 
-    private static func endpoint(_ base: String, _ path: String) -> URL? {
+    static func endpoint(_ base: String, _ path: String) -> URL? {
         URL(string: normalisedBase(base) + path)
+    }
+
+    /// The chat endpoint a provider's default base resolves to — the thing that
+    /// has to be right for every provider, not just the one being used today.
+    static func chatEndpoint(for provider: LLMProvider, base: String? = nil) -> String {
+        let path = provider.wire == .anthropic ? "/messages" : "/chat/completions"
+        return endpoint(base ?? provider.defaultBaseURL, path)?.absoluteString ?? ""
+    }
+
+    static func modelsEndpoint(for provider: LLMProvider, base: String? = nil) -> String {
+        endpoint(base ?? provider.defaultBaseURL, "/models")?.absoluteString ?? ""
     }
 
     /// A cleanup pass should tidy the words, not replace them. If the reply is
