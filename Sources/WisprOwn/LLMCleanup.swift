@@ -138,10 +138,25 @@ enum LLMCleanup {
         return prompt
     }
 
-    /// `https://host/v1` + `/messages` — trailing slashes in a hand-typed
-    /// custom base URL would otherwise produce `//messages`.
+    /// Endpoint paths this app appends, and therefore ones a stored base URL
+    /// must not already end with.
+    static let endpointPaths = ["/messages", "/chat/completions"]
+
+    /// `https://host/v1` + `/messages`. Trailing slashes in a hand-typed custom
+    /// base would produce `//messages`, and — the bug this exists for — early
+    /// versions stored the *full* endpoint here, so appending gave
+    /// `/v1/messages/messages` and every call 404'd. Normalising on the way out
+    /// fixes settings already saved in the old shape.
+    static func normalisedBase(_ base: String) -> String {
+        var trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: " /"))
+        for suffix in endpointPaths where trimmed.hasSuffix(suffix) {
+            trimmed.removeLast(suffix.count)
+        }
+        return trimmed
+    }
+
     private static func endpoint(_ base: String, _ path: String) -> URL? {
-        URL(string: base.trimmingCharacters(in: CharacterSet(charactersIn: " /")) + path)
+        URL(string: normalisedBase(base) + path)
     }
 
     /// A cleanup pass should tidy the words, not replace them. If the reply is

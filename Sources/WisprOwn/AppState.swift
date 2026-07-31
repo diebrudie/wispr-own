@@ -93,7 +93,8 @@ final class AppState: ObservableObject {
             llmError = nil // a settings change invalidates the last failure
             // Each provider keeps its own model, endpoint, and key.
             llmModel = UserDefaults.standard.string(forKey: modelKey) ?? llmProvider.defaultModel
-            llmBaseURL = UserDefaults.standard.string(forKey: baseURLKey) ?? llmProvider.defaultBaseURL
+            llmBaseURL = LLMCleanup.normalisedBase(
+                UserDefaults.standard.string(forKey: baseURLKey) ?? llmProvider.defaultBaseURL)
             llmAPIKey = LLMKeychain.read(llmProvider.rawValue) ?? ""
             llmModels = llmProvider.fallbackModels
             refreshLLMModels()
@@ -219,8 +220,14 @@ final class AppState: ObservableObject {
         llmProvider = provider
         llmModel = UserDefaults.standard.string(forKey: "llmModel.\(provider.rawValue)")
             ?? provider.defaultModel
-        llmBaseURL = UserDefaults.standard.string(forKey: "llmBaseURL.\(provider.rawValue)")
-            ?? provider.defaultBaseURL
+        let migratedBase = LLMCleanup.normalisedBase(
+            UserDefaults.standard.string(forKey: "llmBaseURL.\(provider.rawValue)")
+                ?? provider.defaultBaseURL)
+        llmBaseURL = migratedBase
+        // Persist the corrected form: init assignments don't fire didSet, so
+        // without this the old full-endpoint string stays on disk and anyone
+        // reading the settings still sees the broken value.
+        UserDefaults.standard.set(migratedBase, forKey: "llmBaseURL.\(provider.rawValue)")
         llmAPIKey = LLMKeychain.read(provider.rawValue) ?? ""
         llmModels = provider.fallbackModels
         llmEnabled = UserDefaults.standard.object(forKey: "llmEnabled") as? Bool ?? true

@@ -77,6 +77,21 @@ enum TranscribeCLI {
             LLMCleanup.parseModels(json(#"{"data":[{"id":"gpt-5"},{"id":"text-embedding-3-small"},{"id":"dall-e-3"}]}"#))
                 == ["gpt-5"], "non-chat models filtered")
         precondition(LLMCleanup.parseModels(json("nope")).isEmpty, "malformed model list")
+
+        // Base URLs saved by early versions held the full endpoint; appending
+        // to those produced /v1/messages/messages and 404'd every call.
+        precondition(
+            LLMCleanup.normalisedBase("https://api.anthropic.com/v1/messages")
+                == "https://api.anthropic.com/v1", "stored Anthropic endpoint normalised")
+        precondition(
+            LLMCleanup.normalisedBase("https://api.openai.com/v1/chat/completions")
+                == "https://api.openai.com/v1", "stored OpenAI endpoint normalised")
+        precondition(
+            LLMCleanup.normalisedBase("https://api.anthropic.com/v1/")
+                == "https://api.anthropic.com/v1", "trailing slash trimmed")
+        precondition(
+            LLMCleanup.normalisedBase("http://localhost:11434/v1")
+                == "http://localhost:11434/v1", "already-correct base untouched")
         print("selftest: cleanup parsing ok")
 
         // Dictionary learning. The stub mirrors what the real macOS checker was
@@ -212,7 +227,11 @@ enum TranscribeCLI {
     /// nothing about *why*; this does. The key itself is never printed.
     static func llmTest() {
         setvbuf(stdout, nil, _IONBF, 0)
-        let defaults = UserDefaults.standard
+        // The app's domain, explicitly. Run outside the .app bundle,
+        // UserDefaults.standard is a *different* domain, so this quietly tested
+        // the built-in defaults instead of the user's real settings — and
+        // reported everything fine while the app was failing.
+        let defaults = UserDefaults(suiteName: "com.diebrudie.wisprown") ?? .standard
         let provider = defaults.string(forKey: "llmProvider")
             .flatMap(LLMProvider.init(rawValue:)) ?? .anthropic
         let model = defaults.string(forKey: "llmModel.\(provider.rawValue)") ?? provider.defaultModel
@@ -221,6 +240,8 @@ enum TranscribeCLI {
 
         print("provider:  \(provider.displayName)")
         print("endpoint:  \(base)")
+        let normalised = LLMCleanup.normalisedBase(base)
+        if normalised != base { print("           → normalised to \(normalised)") }
         print("model:     \(model)")
         print("key:       \(key.isEmpty ? "MISSING" : "present (\(key.count) chars, ends …\(key.suffix(4)))")")
         print("enabled:   \(defaults.object(forKey: "llmEnabled") as? Bool ?? true)")
