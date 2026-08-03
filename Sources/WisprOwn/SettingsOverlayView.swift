@@ -164,6 +164,14 @@ struct SettingsOverlayView: View {
             }
         }
 
+        Section {
+            Toggle("Catch the first word", isOn: $app.keepMicWarm)
+        } footer: {
+            Text(app.keepMicWarm
+                 ? "On. Starting a dictation takes about a fifth of a second, which is long enough to clip your first word — so the microphone is held open and the half-second before you press the key is kept. macOS shows its recording indicator the whole time WisprOwn runs. Audio still never leaves memory, and anything older than that half-second is discarded continuously."
+                 : "Off. The microphone opens only while you hold the key, so the recording indicator appears only then — but the first word or two of a dictation is usually lost.")
+        }
+
         Section("Microphone") {
             Picker("Input device", selection: $app.micUID) {
                 Text("System Default").tag("")

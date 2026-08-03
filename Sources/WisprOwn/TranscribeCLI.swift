@@ -46,6 +46,23 @@ enum TranscribeCLI {
         precondition(Transcriber.hasSpeech(mostlySilent), "brief word in silence")
         print("selftest: silence gate ok (floor \(Transcriber.speechFloor))")
 
+        // Pre-roll must keep only the most recent window, or a warm mic would
+        // grow an unbounded in-memory recording of everything it ever heard.
+        let oneSecond = Int(AudioRecorder.targetSampleRate)
+        precondition(
+            AudioRecorder.trimmed([Float](repeating: 1, count: oneSecond * 5), seconds: 0.5).count
+                == oneSecond / 2, "long buffer trimmed to the window")
+        precondition(
+            AudioRecorder.trimmed([Float](repeating: 1, count: 100), seconds: 0.5).count == 100,
+            "short buffer untouched")
+        // Trimming keeps the *end* — the audio nearest the key press.
+        var tail = [Float](repeating: 0, count: oneSecond)
+        tail.append(contentsOf: [Float](repeating: 0.9, count: 8))
+        precondition(
+            AudioRecorder.trimmed(tail, seconds: 0.5).suffix(8).allSatisfy { $0 == 0.9 },
+            "newest audio survives trimming")
+        print("selftest: pre-roll ok")
+
         // Cleanup response parsing — a wrong shape here would silently cost
         // every cleaned dictation, since failures fall back to the raw text.
         func json(_ string: String) -> Data { Data(string.utf8) }

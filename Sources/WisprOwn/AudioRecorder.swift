@@ -13,21 +13,77 @@ final class AudioRecorder {
     /// queue — drives the WisprOwn bar's waveform.
     var onLevel: (Float) -> Void = { _ in }
 
+    /// How much audio from *before* the key press is kept. Measured on this
+    /// machine, `AVAudioEngine.start()` costs ~220 ms — long enough to swallow
+    /// the first syllable or two, since people start talking as they press.
+    /// Half a second covers that with room to spare.
+    static let preRollSeconds: Double = 0.5
+
     private let engine = AVAudioEngine()
     private let bufferQueue = DispatchQueue(label: "com.diebrudie.wisprown.audio")
     private var samples: [Float] = []
+    private var preRoll: [Float] = []
     private var converter: AVAudioConverter?
     private var capFired = false
     private(set) var isRecording = false
+    /// True while the engine is held open between dictations.
+    private(set) var isWarm = false
+
+    /// Keeps the engine running so a dictation starts instantly, at the cost of
+    /// holding the microphone open — macOS shows its recording indicator the
+    /// whole time the app runs. Audio still only lives in memory, and anything
+    /// older than `preRollSeconds` is continuously discarded.
+    func startContinuous() throws {
+        guard !isWarm, !isRecording else { return }
+        try beginCapture()
+        isWarm = true
+        dlog("audio: mic held warm, \(Int(Self.preRollSeconds * 1000)) ms pre-roll")
+    }
+
+    func stopContinuous() {
+        guard isWarm, !isRecording else { return }
+        endCapture()
+        isWarm = false
+        bufferQueue.sync { preRoll.removeAll() }
+        dlog("audio: mic released")
+    }
+
+    /// Drops everything older than `preRollSeconds` from the rolling buffer.
+    static func trimmed(_ buffer: [Float], seconds: Double = preRollSeconds) -> [Float] {
+        let limit = Int(targetSampleRate * seconds)
+        guard buffer.count > limit else { return buffer }
+        return Array(buffer.suffix(limit))
+    }
 
     func start() throws {
         guard !isRecording else { return }
         let began = DispatchTime.now()
+
+        if isWarm {
+            // The mic is already live, so the audio from just before the key
+            // press is already captured — seed the take with it.
+            let seeded = bufferQueue.sync { () -> Int in
+                samples = preRoll
+                preRoll.removeAll(keepingCapacity: true)
+                capFired = false
+                return samples.count
+            }
+            isRecording = true
+            let ms = Double(seeded) / Self.targetSampleRate * 1000
+            dlog("audio: recording started instantly (\(String(format: "%.0f", ms)) ms of pre-roll)")
+            return
+        }
+
         bufferQueue.sync {
             samples.removeAll(keepingCapacity: true)
             capFired = false
         }
+        try beginCapture()
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - began.uptimeNanoseconds) / 1_000_000
+        dlog("audio: recording started in \(String(format: "%.0f", ms)) ms — first words may be clipped")
+    }
 
+    private func beginCapture() throws {
         let input = engine.inputNode
         applyPreferredDevice(to: input)
         let inputFormat = input.inputFormat(forBus: 0)
@@ -54,25 +110,21 @@ final class AudioRecorder {
         }
         engine.prepare()
         try engine.start()
-        isRecording = true
-        // The gap between pressing the key and the mic actually delivering
-        // samples is what clips the first word. Logged so it can be measured
-        // rather than guessed at.
-        let ms = Double(DispatchTime.now().uptimeNanoseconds - began.uptimeNanoseconds) / 1_000_000
-        dlog("audio: recording started in \(String(format: "%.0f", ms)) ms (\(Int(inputFormat.sampleRate)) Hz input)")
+        dlog("audio: capture running (\(Int(inputFormat.sampleRate)) Hz input)")
     }
 
-    /// Stops and returns the captured 16 kHz mono samples.
-    func stop() -> [Float] {
-        guard isRecording else { return [] }
+    private func endCapture() {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        isRecording = false
         converter = nil
-        // Deliberately NOT prepared here or at launch: `prepare()` touches
-        // `engine.inputNode`, which spins up the audio HAL, and on the launch
-        // path that blocked `AppState.init` and the app never finished starting.
-        // The start-latency log below is the honest way to size this problem.
+    }
+
+    /// Stops and returns the captured 16 kHz mono samples. When the mic is held
+    /// warm the engine keeps running — only this take ends.
+    func stop() -> [Float] {
+        guard isRecording else { return [] }
+        isRecording = false
+        if !isWarm { endCapture() }
         let captured = bufferQueue.sync { samples }
         dlog("audio: stopped, \(String(format: "%.1f", Double(captured.count) / Self.targetSampleRate))s captured")
         return captured
@@ -80,7 +132,7 @@ final class AudioRecorder {
 
     func cancel() {
         _ = stop()
-        bufferQueue.sync { samples.removeAll() }
+        bufferQueue.sync { samples.removeAll(); preRoll.removeAll() }
         dlog("audio: canceled, buffer discarded")
     }
 
@@ -132,6 +184,13 @@ final class AudioRecorder {
         DispatchQueue.main.async { [weak self] in self?.onLevel(rms) }
         bufferQueue.async { [weak self] in
             guard let self else { return }
+            guard self.isRecording else {
+                // Not recording but the mic is warm: keep only the most recent
+                // slice, so nothing older than the pre-roll window is retained.
+                self.preRoll.append(contentsOf: chunk)
+                self.preRoll = Self.trimmed(self.preRoll)
+                return
+            }
             self.samples.append(contentsOf: chunk)
             if !self.capFired,
                Double(self.samples.count) / Self.targetSampleRate >= Self.maxSeconds {

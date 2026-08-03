@@ -65,12 +65,25 @@ final class AppState: ObservableObject {
         }
     }
     @Published var micUID: String {
-        didSet { UserDefaults.standard.set(micUID, forKey: AudioDevices.defaultsKey) }
+        didSet {
+            UserDefaults.standard.set(micUID, forKey: AudioDevices.defaultsKey)
+            // The device is chosen when capture starts, so a warm mic has to be
+            // cycled for a new selection to take effect.
+            if keepMicWarm { recorder.stopContinuous(); applyMicWarmth() }
+        }
     }
     /// Rolling mic-loudness window (0…1) driving the WisprOwn bar waveform.
     @Published var levelHistory: [Float] = Array(repeating: 0, count: 26)
     @Published var showFlowBar: Bool {
         didSet { UserDefaults.standard.set(showFlowBar, forKey: "showFlowBar") }
+    }
+    /// Hold the mic open between dictations so a take starts instantly.
+    /// Costs the macOS recording indicator being lit whenever the app runs.
+    @Published var keepMicWarm: Bool {
+        didSet {
+            UserDefaults.standard.set(keepMicWarm, forKey: "keepMicWarm")
+            applyMicWarmth()
+        }
     }
     @Published var appearance: AppearanceOption {
         didSet {
@@ -214,6 +227,7 @@ final class AppState: ObservableObject {
         firstName = UserDefaults.standard.string(forKey: "firstName") ?? ""
         lastName = UserDefaults.standard.string(forKey: "lastName") ?? ""
         showFlowBar = UserDefaults.standard.object(forKey: "showFlowBar") as? Bool ?? true
+        keepMicWarm = UserDefaults.standard.object(forKey: "keepMicWarm") as? Bool ?? true
 
         let provider = UserDefaults.standard.string(forKey: "llmProvider")
             .flatMap(LLMProvider.init(rawValue:)) ?? .anthropic
@@ -293,6 +307,7 @@ final class AppState: ObservableObject {
         }
         phase = .idle
         dlog("app: ready")
+        applyMicWarmth()
     }
 
     private func waitForPermissions() async {
@@ -377,6 +392,19 @@ final class AppState: ObservableObject {
                 }
             }
             await self?.finish(output: output, audioMs: audioMs, targetApp: targetApp)
+        }
+    }
+
+    /// Starts or stops the warm mic. Only ever runs once the app is idle —
+    /// holding the input open before permissions and the model are settled
+    /// would light the recording indicator during startup for no benefit.
+    private func applyMicWarmth() {
+        guard case .idle = phase else { return }
+        guard keepMicWarm else { recorder.stopContinuous(); return }
+        do {
+            try recorder.startContinuous()
+        } catch {
+            dlog("audio: could not hold the mic warm (\(error.localizedDescription))")
         }
     }
 
