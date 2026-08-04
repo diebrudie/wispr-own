@@ -399,8 +399,13 @@ final class AppState: ObservableObject {
     /// holding the input open before permissions and the model are settled
     /// would light the recording indicator during startup for no benefit.
     private func applyMicWarmth() {
-        guard case .idle = phase else { return }
+        // Releasing is never deferred: switching this off is a privacy request
+        // and has to take effect at once, whatever the app is doing.
         guard keepMicWarm else { recorder.stopContinuous(); return }
+        // Warming waits until the app is settled — holding the input open
+        // during permission prompts and model loading lights the recording
+        // indicator for no benefit.
+        guard case .idle = phase else { return }
         do {
             try recorder.startContinuous()
         } catch {
@@ -434,6 +439,8 @@ final class AppState: ObservableObject {
         refreshRecent()
         Paster.paste(output.text)
         phase = .idle
+        // A toggle flipped mid-dictation couldn't be honoured then; do it now.
+        applyMicWarmth()
     }
 
     func refreshRecent() {
