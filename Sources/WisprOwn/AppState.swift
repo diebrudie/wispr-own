@@ -206,6 +206,8 @@ final class AppState: ObservableObject {
     private let modelManager = ModelManager()
     private var history: HistoryStore?
     private var permissionPoll: Timer?
+    /// When the key went down, so a take can be compared against it.
+    private var recordingBegan: Date?
 
     private var isError: Bool {
         if case .error = phase { return true }
@@ -346,6 +348,7 @@ final class AppState: ObservableObject {
         do {
             levelHistory = Array(repeating: 0, count: levelHistory.count)
             try recorder.start()
+            recordingBegan = Date()
             phase = .recording
             if playSounds { NSSound(named: "Pop")?.play() }
         } catch {
@@ -361,7 +364,9 @@ final class AppState: ObservableObject {
 
     private func stopAndTranscribe() {
         guard phase == .recording else { return }
-        let samples = recorder.stop()
+        let held = recordingBegan.map { Date().timeIntervalSince($0) }
+        recordingBegan = nil
+        let samples = recorder.stop(heldFor: held)
         // Target app is captured NOW — before transcription — because focus
         // could change during the wait.
         let targetApp = Paster.frontmostAppBundleID
@@ -424,8 +429,17 @@ final class AppState: ObservableObject {
             return
         }
         guard !output.text.isEmpty else {
-            dlog("app: empty transcript, skipping")
-            phase = .idle
+            // Held the key for a real length of time and got nothing back? That
+            // is a dropped take, not silence, and it used to disappear without
+            // a trace — no paste, no history row, nothing to recover.
+            if audioMs >= 1500 {
+                dlog("app: nothing transcribed from \(audioMs) ms of audio")
+                phase = .error("Nothing was captured — try again")
+            } else {
+                dlog("app: empty transcript, skipping")
+                phase = .idle
+            }
+            applyMicWarmth()
             return
         }
         // Zero-loss rule (Spec 05/G6): persist BEFORE attempting to paste.

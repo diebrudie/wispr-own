@@ -91,18 +91,25 @@ final class AudioRecorder {
         interruptionObservers.removeAll()
     }
 
-    /// Rebuilds the held capture after an interruption. If it can't be brought
-    /// back, warmth is dropped so the next dictation takes the cold path —
-    /// slower, but it records, which is the part that matters.
+    /// Rebuilds the capture after an interruption.
+    ///
+    /// This deliberately runs *during* a dictation too. Skipping while
+    /// recording seemed safe and was the opposite: a Bluetooth device changing
+    /// profile — which is exactly what happens when the mic opens on AirPods —
+    /// stops the engine mid-take, and ignoring it meant the rest of the
+    /// sentence was never captured. The take survives because `samples` lives
+    /// on the buffer queue and is untouched here; only the engine is rebuilt,
+    /// so audio resumes appending to the same take.
     private func recoverWarmCapture(_ reason: String) {
-        guard isWarm, !isRecording else { return }
+        guard isWarm || isRecording else { return }
+        let midTake = isRecording
         endCapture()
         do {
             try beginCapture()
-            dlog("audio: mic re-warmed after \(reason)")
+            dlog("audio: capture rebuilt after \(reason)\(midTake ? " — mid-dictation, take preserved" : "")")
         } catch {
-            isWarm = false
-            dlog("audio: could not re-warm after \(reason) (\(error.localizedDescription)) — falling back to cold starts")
+            if !midTake { isWarm = false }
+            dlog("audio: could not rebuild after \(reason) (\(error.localizedDescription))")
         }
     }
 
@@ -187,11 +194,19 @@ final class AudioRecorder {
 
     /// Stops and returns the captured 16 kHz mono samples. When the mic is held
     /// warm the engine keeps running — only this take ends.
-    func stop() -> [Float] {
+    func stop(heldFor seconds: Double? = nil) -> [Float] {
         guard isRecording else { return [] }
         isRecording = false
         if !isWarm { endCapture() }
         let captured = bufferQueue.sync { samples }
+        // A take much shorter than the key hold means the engine dropped out
+        // mid-dictation. Silent truncation is what made this so hard to see.
+        if let seconds, seconds > 1 {
+            let ratio = Double(captured.count) / Self.targetSampleRate / seconds
+            if ratio < 0.7 {
+                dlog("audio: WARNING captured only \(Int(ratio * 100))% of the \(String(format: "%.1f", seconds))s you held — the input dropped out")
+            }
+        }
         dlog("audio: stopped, \(String(format: "%.1f", Double(captured.count) / Self.targetSampleRate))s captured")
         return captured
     }
