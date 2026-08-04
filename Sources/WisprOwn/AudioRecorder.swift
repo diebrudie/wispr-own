@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 
 /// Spec 02 — records the default input device into an in-memory
@@ -28,6 +29,7 @@ final class AudioRecorder {
     private(set) var isRecording = false
     /// True while the engine is held open between dictations.
     private(set) var isWarm = false
+    private var interruptionObservers: [NSObjectProtocol] = []
 
     /// Keeps the engine running so a dictation starts instantly, at the cost of
     /// holding the microphone open — macOS shows its recording indicator the
@@ -37,6 +39,7 @@ final class AudioRecorder {
         guard !isWarm, !isRecording else { return }
         try beginCapture()
         isWarm = true
+        observeInterruptions()
         dlog("audio: mic held warm, \(Int(Self.preRollSeconds * 1000)) ms pre-roll")
     }
 
@@ -44,8 +47,63 @@ final class AudioRecorder {
         guard isWarm, !isRecording else { return }
         endCapture()
         isWarm = false
+        stopObserving()
         bufferQueue.sync { preRoll.removeAll() }
         dlog("audio: mic released")
+    }
+
+    /// A held engine does not survive everything: sleeping the Mac, changing
+    /// output device, unplugging headphones and swapping the default input all
+    /// stop it. Nothing tells the app, so without this the mic stayed "warm"
+    /// while capturing nothing and every dictation came back empty until the
+    /// app was restarted.
+    private func observeInterruptions() {
+        guard interruptionObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        interruptionObservers.append(center.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            self?.recoverWarmCapture("audio configuration changed")
+        })
+
+        let workspace = NSWorkspace.shared.notificationCenter
+        interruptionObservers.append(workspace.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isWarm, !self.isRecording else { return }
+            // Release it deliberately rather than letting sleep tear it down —
+            // holding a dead engine across sleep is what broke it.
+            self.endCapture()
+            dlog("audio: mic released for sleep")
+        })
+        interruptionObservers.append(workspace.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.recoverWarmCapture("woke from sleep")
+        })
+    }
+
+    private func stopObserving() {
+        for observer in interruptionObservers {
+            NotificationCenter.default.removeObserver(observer)
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        interruptionObservers.removeAll()
+    }
+
+    /// Rebuilds the held capture after an interruption. If it can't be brought
+    /// back, warmth is dropped so the next dictation takes the cold path —
+    /// slower, but it records, which is the part that matters.
+    private func recoverWarmCapture(_ reason: String) {
+        guard isWarm, !isRecording else { return }
+        endCapture()
+        do {
+            try beginCapture()
+            dlog("audio: mic re-warmed after \(reason)")
+        } catch {
+            isWarm = false
+            dlog("audio: could not re-warm after \(reason) (\(error.localizedDescription)) — falling back to cold starts")
+        }
     }
 
     /// Drops everything older than `preRollSeconds` from the rolling buffer.
@@ -59,7 +117,15 @@ final class AudioRecorder {
         guard !isRecording else { return }
         let began = DispatchTime.now()
 
-        if isWarm {
+        // Never trust the flag alone. If the engine died for any reason the
+        // warm path would capture silence forever; checking that it is actually
+        // running means the worst case is a cold start, not a broken app.
+        if isWarm, !engine.isRunning {
+            dlog("audio: warm engine had stopped, recovering")
+            recoverWarmCapture("it stopped unexpectedly")
+        }
+
+        if isWarm, engine.isRunning {
             // The mic is already live, so the audio from just before the key
             // press is already captured — seed the take with it.
             let seeded = bufferQueue.sync { () -> Int in
