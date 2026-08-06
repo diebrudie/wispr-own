@@ -308,6 +308,49 @@ enum TranscribeCLI {
         _exit(0)
     }
 
+    /// `WisprOwn --audio-test` — exercises both capture paths and reports how
+    /// much audio each actually collected. The bug this exists for was a
+    /// missing `isRecording = true` on the cold path: every buffer went to the
+    /// pre-roll instead of the take, so dictations came back empty while the
+    /// UI showed recording. A build check would never have caught it.
+    static func audioTest() {
+        setvbuf(stdout, nil, _IONBF, 0)
+        let recorder = AudioRecorder()
+
+        func take(_ label: String, seconds: Double) -> Double {
+            do { try recorder.start() } catch {
+                print("\(label): start failed — \(error.localizedDescription)")
+                return -1
+            }
+            Thread.sleep(forTimeInterval: seconds)
+            let samples = recorder.stop(heldFor: seconds)
+            let captured = Double(samples.count) / AudioRecorder.targetSampleRate
+            let ratio = captured / seconds
+            print(String(format: "%@: held %.1fs, captured %.2fs (%.0f%%) %@",
+                         label, seconds, captured, ratio * 100,
+                         ratio > 0.5 ? "OK" : "FAIL — the take is not being filled"))
+            return ratio
+        }
+
+        let cold = take("cold  ", seconds: 1.5)
+
+        do {
+            try recorder.startContinuous()
+            Thread.sleep(forTimeInterval: 0.8) // let the pre-roll fill
+        } catch {
+            print("warm  : could not hold the mic (\(error.localizedDescription))")
+            _exit(cold > 0.5 ? 0 : 1)
+        }
+        let warm = take("warm  ", seconds: 1.5)
+        // Back-to-back, the case that crashed: stop then immediately start again.
+        let again = take("repeat", seconds: 1.0)
+        recorder.stopContinuous()
+
+        let ok = cold > 0.5 && warm > 0.5 && again > 0.5
+        print(ok ? "audio-test: both paths capture" : "audio-test: FAILED")
+        _exit(ok ? 0 : 1)
+    }
+
     static func run(path: String) {
         // Unbuffered stdout: we exit via _exit(), which skips stream flushing.
         setvbuf(stdout, nil, _IONBF, 0)

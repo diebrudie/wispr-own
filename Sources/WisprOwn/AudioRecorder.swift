@@ -141,9 +141,9 @@ final class AudioRecorder {
                 capFired = false
                 return samples.count
             }
-            isRecording = true
             let ms = Double(seeded) / Self.targetSampleRate * 1000
             dlog("audio: recording started instantly (\(String(format: "%.0f", ms)) ms of pre-roll)")
+            isRecording = true // set last, and once — see below
             return
         }
 
@@ -154,6 +154,13 @@ final class AudioRecorder {
         try beginCapture()
         let ms = Double(DispatchTime.now().uptimeNanoseconds - began.uptimeNanoseconds) / 1_000_000
         dlog("audio: recording started in \(String(format: "%.0f", ms)) ms — first words may be clipped")
+        // This assignment went missing when the warm path was added, and the
+        // damage was silent and total: the tap routed every buffer into the
+        // pre-roll instead of the take, `stop()` returned early at its
+        // `isRecording` guard so the engine was never torn down, and the next
+        // press installed a second tap on an occupied bus — which throws.
+        // One missing line produced both "nothing was transcribed" and the crash.
+        isRecording = true
     }
 
     private func beginCapture() throws {
@@ -178,6 +185,10 @@ final class AudioRecorder {
         self.converter = converter
 
         let ratio = Self.targetSampleRate / inputFormat.sampleRate
+        // AVAudioEngine allows one tap per bus and throws — fatally — on a
+        // second. Removing first makes this idempotent, so a state slip can
+        // never take the app down with it again.
+        input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             self?.append(buffer: buffer, targetFormat: targetFormat, ratio: ratio)
         }
@@ -195,7 +206,15 @@ final class AudioRecorder {
     /// Stops and returns the captured 16 kHz mono samples. When the mic is held
     /// warm the engine keeps running — only this take ends.
     func stop(heldFor seconds: Double? = nil) -> [Float] {
-        guard isRecording else { return [] }
+        guard isRecording else {
+            // Nothing was being recorded, yet a cold engine is running: state
+            // has slipped somewhere. Release it rather than leaving the mic on.
+            if !isWarm, engine.isRunning {
+                dlog("audio: engine was running without a take — releasing")
+                endCapture()
+            }
+            return []
+        }
         isRecording = false
         if !isWarm { endCapture() }
         let captured = bufferQueue.sync { samples }
