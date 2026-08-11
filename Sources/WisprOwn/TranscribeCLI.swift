@@ -61,6 +61,15 @@ enum TranscribeCLI {
         precondition(
             AudioRecorder.trimmed(tail, seconds: 0.5).suffix(8).allSatisfy { $0 == 0.9 },
             "newest audio survives trimming")
+        // Voiced share is what separates "we recorded silence" from "the
+        // transcriber gave up" — the two look identical in a duration log.
+        precondition(
+            AudioRecorder.voicedFraction([Float](repeating: 0, count: oneSecond * 3)) == 0,
+            "pure silence reads as no speech")
+        var half = [Float](repeating: 0, count: oneSecond)
+        half.append(contentsOf: (0..<oneSecond).map { 0.2 * sin(Float($0) * 0.05) })
+        let share = AudioRecorder.voicedFraction(half)
+        precondition(share > 0.4 && share < 0.6, "half-speech reads near 50%, got \(share)")
         print("selftest: pre-roll ok")
 
         // Cleanup response parsing — a wrong shape here would silently cost

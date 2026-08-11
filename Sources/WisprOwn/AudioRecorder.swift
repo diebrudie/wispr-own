@@ -20,6 +20,9 @@ final class AudioRecorder {
     /// Half a second covers that with room to spare.
     static let preRollSeconds: Double = 0.5
 
+    /// Same floor the transcriber uses to decide a clip is silent.
+    static let speechFloor: Float = Transcriber.speechFloor
+
     private let engine = AVAudioEngine()
     private let bufferQueue = DispatchQueue(label: "com.diebrudie.wisprown.audio")
     private var samples: [Float] = []
@@ -37,6 +40,15 @@ final class AudioRecorder {
     /// older than `preRollSeconds` is continuously discarded.
     func startContinuous() throws {
         guard !isWarm, !isRecording else { return }
+        // Never hold a Bluetooth mic open. Doing so pins the headset profile
+        // for as long as the app runs, and the profile flipping mid-dictation
+        // is what silently truncated takes — full-length audio that was quiet
+        // after the first second or two. Those inputs use the cold path, where
+        // the switch happens before recording rather than during it.
+        if let device = AudioDevices.currentInputDevice(), AudioDevices.isBluetooth(device) {
+            dlog("audio: \(device.name) is Bluetooth — not holding it open, using cold starts")
+            return
+        }
         try beginCapture()
         isWarm = true
         observeInterruptions()
@@ -111,6 +123,22 @@ final class AudioRecorder {
             if !midTake { isWarm = false }
             dlog("audio: could not rebuild after \(reason) (\(error.localizedDescription))")
         }
+    }
+
+    /// Share of 100 ms frames loud enough to be speech. A healthy dictation
+    /// runs well above this; near-zero means the microphone was delivering
+    /// silence even though buffers kept arriving.
+    static func voicedFraction(_ samples: [Float]) -> Double {
+        let frame = Int(targetSampleRate / 10)
+        guard samples.count >= frame else { return 0 }
+        var voiced = 0, total = 0
+        for start in stride(from: 0, to: samples.count - frame, by: frame) {
+            let chunk = samples[start..<start + frame]
+            let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count))
+            total += 1
+            if rms >= speechFloor { voiced += 1 }
+        }
+        return total == 0 ? 0 : Double(voiced) / Double(total)
     }
 
     /// Drops everything older than `preRollSeconds` from the rolling buffer.
@@ -224,6 +252,15 @@ final class AudioRecorder {
             let ratio = Double(captured.count) / Self.targetSampleRate / seconds
             if ratio < 0.7 {
                 dlog("audio: WARNING captured only \(Int(ratio * 100))% of the \(String(format: "%.1f", seconds))s you held — the input dropped out")
+            }
+        }
+        // Full-length but silent audio looks identical to a healthy take in the
+        // logs, and transcribes to almost nothing. Reporting the voiced share
+        // separates "we recorded silence" from "the transcriber gave up".
+        if captured.count > Int(Self.targetSampleRate) {
+            let voiced = Self.voicedFraction(captured)
+            if voiced < 0.25 {
+                dlog("audio: WARNING only \(Int(voiced * 100))% of the take had speech in it — the input went quiet")
             }
         }
         dlog("audio: stopped, \(String(format: "%.1f", Double(captured.count) / Self.targetSampleRate))s captured")

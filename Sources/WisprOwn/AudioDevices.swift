@@ -36,6 +36,44 @@ enum AudioDevices {
         }
     }
 
+    /// The input CoreAudio will actually use right now — the user's choice if
+    /// it's connected, otherwise the system default.
+    static func currentInputDevice() -> AudioInputDevice? {
+        if let uid = UserDefaults.standard.string(forKey: defaultsKey), !uid.isEmpty,
+           let chosen = device(withUID: uid) {
+            return chosen
+        }
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                         &address, 0, nil, &size, &deviceID) == noErr
+        else { return nil }
+        return inputDevices().first { $0.id == deviceID }
+    }
+
+    /// Bluetooth inputs behave differently from every other kind: opening the
+    /// mic forces the headset profile, and the profile switching back and forth
+    /// stops the audio engine mid-stream. Worth knowing before deciding to hold
+    /// one open.
+    static func isBluetooth(_ device: AudioInputDevice) -> Bool {
+        var transport = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(device.id, &address, 0, nil, &size, &transport) == noErr
+        else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth
+            || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
     static func device(withUID uid: String) -> AudioInputDevice? {
         inputDevices().first { $0.uid == uid }
     }
