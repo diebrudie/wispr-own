@@ -11,20 +11,27 @@ v0.5.0 is built and running on Isabel's Mac. Since v0.4.0 it gained: a silence g
 auto-learning from hand-corrected transcripts, a press-to-record hotkey picker, and a
 warm-mic pre-roll so the first word isn't clipped.
 
-The last stretch (2026-08-03 → 2026-08-11) was a run of audio-capture bugs caused by
-that warm mic. All are fixed. The final one: holding a **Bluetooth** mic open pins the
-headset profile, and profile flips mid-dictation deliver full-length *silent* buffers —
-which looked like truncation. Bluetooth inputs now use the cold path; built-in and wired
-mics keep warm-hold + pre-roll. Every take now logs its voiced share, so a silent take
-and a good one are no longer indistinguishable in the log.
+The stretch from 2026-08-03 to 2026-08-14 was a run of audio-capture bugs, all caused by
+that warm mic, and all now fixed. Two rules came out of it: **never hold a Bluetooth mic
+open** (it pins the headset profile, and the profile flipping mid-take delivers silent
+buffers), re-checked on every rebuild rather than only at startup; and **never trust
+`AVAudioEngine.isRunning`** (it reports "running" while delivering nothing) — liveness is
+now the timestamp of the last buffer that actually arrived, so a dead warm mic rebuilds
+itself on the next key press instead of needing an app restart.
+
+As of 2026-08-14 the app is running clean on AirPods with the Bluetooth guard active. The
+self-healing path has not yet been seen firing on a genuinely dead engine in the wild —
+that is what the next few days of real use will tell us.
 
 ## Open tasks / next steps
 
-- [ ] **← NEXT: live with v0.5.0 for a few days and confirm no more empty or clipped takes.** Watch the log for the `voiced share` warning: `/usr/bin/log show --process WisprOwn --last 10m --style compact | grep -E 'stopped|whisper:'`
+- [ ] **← NEXT: use it normally for a few days and confirm it no longer dies after a long idle.** The two lines that matter, either of which means the self-heal worked: `warm mic was not delivering audio, rebuilding it` and `is Bluetooth — releasing the warm mic`. Check with:
+      `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep -E 'rebuilding|WARNING|Bluetooth'`
+      If a dictation still comes back empty, capture that window — the log now says which of the two failed.
 - [ ] Isabel adds her friend as a GitHub collaborator (she wants to do this herself)
 - [ ] `Scripts/make-signing-cert.sh` is still unverified on a Mac that has no certificate yet — the friend's install is the real test
 - [ ] Backlog, unstarted (`specs/12-future-features.md`): §A interactive bar hover menu, §B streaming / paste latency, §D UI localization DE/ES, §H dictating over playing audio
-- [ ] Offered, not built: idle-release of the warm mic after N minutes; month labels on the activity calendar; date-range picker; CSV export
+- [ ] Offered, not built: a manual "restart audio" button (skipped on purpose — the self-heal makes it dead weight, but she floated it and can still have it); idle-release of the warm mic after N minutes; month labels on the activity calendar; date-range picker; CSV export
 
 ## Key locations
 
