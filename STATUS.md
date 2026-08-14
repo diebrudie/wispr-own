@@ -46,7 +46,7 @@ Isabel: "WisprOwn stops working suddenly after long periods of resting." Her log
 the failure captured live — three dictations at 12:59 with `hotkey: START`/`STOP` fine
 but `captured 0% of the 2.9s you held`, on an app that had been up 22 hours.
 
-Two causes, both fixed in `ff3a91c`:
+Two causes, both fixed in `362de14`:
 
 1. **The Bluetooth guard only ran at startup.** `startContinuous()` checked, but
    `recoverWarmCapture()` did not, so connecting AirPods to a running app (which arrives
