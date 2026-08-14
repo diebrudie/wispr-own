@@ -23,6 +23,12 @@ final class AudioRecorder {
     /// Same floor the transcriber uses to decide a clip is silent.
     static let speechFloor: Float = Transcriber.speechFloor
 
+    /// How long a warm mic may go without delivering a single buffer before it
+    /// is treated as dead. A healthy tap hands over 4096 frames at a time —
+    /// roughly twelve buffers a second — so a whole second of nothing is not a
+    /// slow moment, it is an engine that has stopped feeding us.
+    static let warmSilenceTimeout: TimeInterval = 1.0
+
     private let engine = AVAudioEngine()
     private let bufferQueue = DispatchQueue(label: "com.diebrudie.wisprown.audio")
     private var samples: [Float] = []
@@ -33,19 +39,29 @@ final class AudioRecorder {
     /// True while the engine is held open between dictations.
     private(set) var isWarm = false
     private var interruptionObservers: [NSObjectProtocol] = []
+    /// When the tap last handed over real audio. Guarded by `bufferQueue`.
+    private var lastBufferAt: Date?
 
     /// Keeps the engine running so a dictation starts instantly, at the cost of
     /// holding the microphone open — macOS shows its recording indicator the
     /// whole time the app runs. Audio still only lives in memory, and anything
     /// older than `preRollSeconds` is continuously discarded.
+    /// The current input, when it is one we must never hold open.
+    ///
+    /// Holding a Bluetooth mic open pins the headset profile for as long as the
+    /// app runs, and the profile flipping mid-dictation is what silently
+    /// truncated takes — full-length audio that went quiet after a second or
+    /// two. Those inputs use the cold path, where the switch happens before
+    /// recording rather than during it.
+    private func bluetoothInput() -> AudioInputDevice? {
+        guard let device = AudioDevices.currentInputDevice(),
+              AudioDevices.isBluetooth(device) else { return nil }
+        return device
+    }
+
     func startContinuous() throws {
         guard !isWarm, !isRecording else { return }
-        // Never hold a Bluetooth mic open. Doing so pins the headset profile
-        // for as long as the app runs, and the profile flipping mid-dictation
-        // is what silently truncated takes — full-length audio that was quiet
-        // after the first second or two. Those inputs use the cold path, where
-        // the switch happens before recording rather than during it.
-        if let device = AudioDevices.currentInputDevice(), AudioDevices.isBluetooth(device) {
+        if let device = bluetoothInput() {
             dlog("audio: \(device.name) is Bluetooth — not holding it open, using cold starts")
             return
         }
@@ -115,6 +131,17 @@ final class AudioRecorder {
     private func recoverWarmCapture(_ reason: String) {
         guard isWarm || isRecording else { return }
         let midTake = isRecording
+        // The Bluetooth rule has to be re-checked on every rebuild, not only at
+        // startup. Connecting AirPods to a running app arrives here as a
+        // configuration change, and rebuilding blindly put the warm mic back
+        // onto the profile-pinning device the rule exists to keep it off —
+        // which is how a session that started on the built-in mic ended up
+        // silently capturing nothing hours later.
+        if !midTake, let device = bluetoothInput() {
+            dlog("audio: \(device.name) is Bluetooth — releasing the warm mic, using cold starts")
+            stopContinuous()
+            return
+        }
         endCapture()
         do {
             try beginCapture()
@@ -141,6 +168,15 @@ final class AudioRecorder {
         return total == 0 ? 0 : Double(voiced) / Double(total)
     }
 
+    /// Whether a warm mic has gone too long without delivering audio. Never
+    /// having delivered any counts as stale — that is the state a rebuilt-but-
+    /// dead engine sits in. Uses wall clock deliberately: the monotonic clock
+    /// stops while the Mac sleeps, and sleeping is exactly when this happens.
+    static func warmIsStale(lastBufferAt: Date?, now: Date) -> Bool {
+        guard let lastBufferAt else { return true }
+        return now.timeIntervalSince(lastBufferAt) > warmSilenceTimeout
+    }
+
     /// Drops everything older than `preRollSeconds` from the rolling buffer.
     static func trimmed(_ buffer: [Float], seconds: Double = preRollSeconds) -> [Float] {
         let limit = Int(targetSampleRate * seconds)
@@ -152,12 +188,17 @@ final class AudioRecorder {
         guard !isRecording else { return }
         let began = DispatchTime.now()
 
-        // Never trust the flag alone. If the engine died for any reason the
-        // warm path would capture silence forever; checking that it is actually
-        // running means the worst case is a cold start, not a broken app.
-        if isWarm, !engine.isRunning {
-            dlog("audio: warm engine had stopped, recovering")
-            recoverWarmCapture("it stopped unexpectedly")
+        // Never trust `isRunning`. It reports the engine's own opinion, and a
+        // warm mic that has quietly stopped feeding us still says yes: after a
+        // long idle, a sleep, or a Bluetooth profile flip, three dictations in
+        // a row came back 0.0s while the engine claimed to be running. Buffers
+        // actually arriving is the only honest signal, so that is what decides.
+        if isWarm {
+            let silence = bufferQueue.sync { lastBufferAt }
+            if !engine.isRunning || Self.warmIsStale(lastBufferAt: silence, now: Date()) {
+                dlog("audio: warm mic was not delivering audio, rebuilding it")
+                recoverWarmCapture("it went silent")
+            }
         }
 
         if isWarm, engine.isRunning {
@@ -222,6 +263,9 @@ final class AudioRecorder {
         }
         engine.prepare()
         try engine.start()
+        // A freshly started engine has not delivered anything yet and would
+        // otherwise read as stale on the very next press.
+        bufferQueue.sync { lastBufferAt = Date() }
         dlog("audio: capture running (\(Int(inputFormat.sampleRate)) Hz input)")
     }
 
@@ -321,6 +365,9 @@ final class AudioRecorder {
         DispatchQueue.main.async { [weak self] in self?.onLevel(rms) }
         bufferQueue.async { [weak self] in
             guard let self else { return }
+            // Proof of life, recorded only once real converted audio exists —
+            // this is what `start()` trusts instead of the engine's own flag.
+            self.lastBufferAt = Date()
             guard self.isRecording else {
                 // Not recording but the mic is warm: keep only the most recent
                 // slice, so nothing older than the pre-roll window is retained.

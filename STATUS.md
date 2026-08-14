@@ -40,6 +40,31 @@ and a good one are no longer indistinguishable in the log.
 
 ## Session log
 
+### 2026-08-14 — the warm mic dies after a long idle
+
+Isabel: "WisprOwn stops working suddenly after long periods of resting." Her log had
+the failure captured live — three dictations at 12:59 with `hotkey: START`/`STOP` fine
+but `captured 0% of the 2.9s you held`, on an app that had been up 22 hours.
+
+Two causes, both fixed in `ff3a91c`:
+
+1. **The Bluetooth guard only ran at startup.** `startContinuous()` checked, but
+   `recoverWarmCapture()` did not, so connecting AirPods to a running app (which arrives
+   as a configuration change) put the warm mic straight back onto the profile-pinning
+   device that `ef604aa` existed to avoid. Now re-checked on every rebuild.
+2. **`engine.isRunning` lies.** It reported "running" through all three dead takes.
+   Liveness is now the timestamp of the last buffer that actually arrived
+   (`warmIsStale`, 1 s timeout, wall clock so it survives sleep); a stale warm mic is
+   rebuilt on the next key press. This self-heals whatever the cause — sleep, App Nap,
+   device flap, HAL wedge.
+
+Deliberately did **not** add a "restart audio" button she floated: with automatic
+recovery it would never be the thing that fixes it. Offered if she still wants one.
+
+Not verified end-to-end: the stale-rebuild path firing on a real dead engine. The
+decision function is unit-tested (and proven to fail when reverted), but the wiring
+only gets its real test the next time a warm mic actually dies.
+
 ### 2026-07-29 → 2026-08-14
 
 Logged four feature ideas as backlog §G/§H and folded the latency item into §B; moved the

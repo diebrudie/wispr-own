@@ -70,6 +70,22 @@ enum TranscribeCLI {
         half.append(contentsOf: (0..<oneSecond).map { 0.2 * sin(Float($0) * 0.05) })
         let share = AudioRecorder.voicedFraction(half)
         precondition(share > 0.4 && share < 0.6, "half-speech reads near 50%, got \(share)")
+
+        // Staleness is what makes a dead warm mic recover by itself. The engine
+        // keeps reporting itself as running, so if this check goes soft the app
+        // silently records nothing until it is restarted — the exact bug.
+        let now = Date()
+        precondition(
+            AudioRecorder.warmIsStale(lastBufferAt: nil, now: now),
+            "a mic that never delivered anything is stale")
+        precondition(
+            AudioRecorder.warmIsStale(
+                lastBufferAt: now.addingTimeInterval(-AudioRecorder.warmSilenceTimeout - 0.5),
+                now: now),
+            "a mic silent past the timeout is stale")
+        precondition(
+            !AudioRecorder.warmIsStale(lastBufferAt: now.addingTimeInterval(-0.1), now: now),
+            "a mic delivering 100 ms ago is healthy")
         print("selftest: pre-roll ok")
 
         // Cleanup response parsing — a wrong shape here would silently cost
