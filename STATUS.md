@@ -25,6 +25,9 @@ that is what the next few days of real use will tell us.
 
 ## Open tasks / next steps
 
+- [ ] **Confirm the first dictation after a long break is now ~1 to 2 s, not 10 to 17 s.** Check with:
+      `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep 'whisper:'`
+      If slow ones remain, the next lever is a quantized large-v3-turbo (q5/q8, about half the RAM).
 - [ ] **← NEXT: use it normally for a few days and confirm it no longer dies after a long idle.** The two lines that matter, either of which means the self-heal worked: `warm mic was not delivering audio, rebuilding it` and `is Bluetooth — releasing the warm mic`. Check with:
       `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep -E 'rebuilding|WARNING|Bluetooth'`
       If a dictation still comes back empty, capture that window — the log now says which of the two failed.
@@ -46,6 +49,15 @@ that is what the next few days of real use will tell us.
 - **Signing identity:** "WisprOwn Dev", created 2026-07-08 — keeps Accessibility/Microphone grants across rebuilds
 
 ## Session log
+
+### 2026-09-24: first dictation after idle took 11 to 17 s
+
+Logs showed audio start was always fast; `whisper:` itself took 17094 / 11489 / 14362 ms
+on the first take after a break, then 1 to 2 s. Cause: ggml-metal keeps the model's Metal
+residency set wired only 3 min after last use (`GGML_METAL_RESIDENCY_KEEP_ALIVE_S`,
+default 180). After that macOS (16 GB, ~4 GB swap in use) pages the 1.6 GB weights out.
+Fix: set the keep-alive to 30 days in `Transcriber.load`. Cost: ~1.8 GB stays pinned.
+The warm mic never could have fixed this: the delay was never in the mic.
 
 ### 2026-08-14 — the warm mic dies after a long idle
 

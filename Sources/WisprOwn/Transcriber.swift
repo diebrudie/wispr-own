@@ -45,6 +45,11 @@ final class Transcriber {
     /// ggml-base first and fixing the language halves total latency.
     func load(modelPath: String, detectModelPath: String) throws {
         guard ctx == nil else { return }
+        // ggml-metal unwires the weights 3 min after the last use; under memory
+        // pressure macOS then swaps them out and the next dictation spends
+        // 10–17 s paging 1.6 GB back in. Keep them wired for 30 days instead.
+        // ponytail: pins ~1.8 GB permanently; a quantized model halves that.
+        setenv("GGML_METAL_RESIDENCY_KEEP_ALIVE_S", "2592000", 0)
         var params = whisper_context_default_params()
         params.use_gpu = true
         params.flash_attn = true
