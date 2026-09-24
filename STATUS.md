@@ -5,36 +5,27 @@ An owned alternative to Wispr Flow. Repo: `git@github.com:diebrudie/wispr-own.gi
 
 ## Current status
 
-v0.5.0 is built and running on Isabel's Mac. Since v0.4.0 it gained: a silence gate
-(nothing said → nothing pasted), optional LLM cleanup with a bring-your-own API key
-(Anthropic / OpenAI / Grok / custom, off by default), an Insights tab, dictionary
-auto-learning from hand-corrected transcripts, a press-to-record hotkey picker, and a
-warm-mic pre-roll so the first word isn't clipped.
+v0.5.0 plus the 2026-09-24 latency fix is built and running on Isabel's Mac. The first
+dictation after a long break used to take 11 to 17 s because ggml-metal released the
+1.6 GB model after 3 min idle and macOS paged it out; the weights now stay pinned
+(`GGML_METAL_RESIDENCY_KEEP_ALIVE_S`, 30 days). Isabel tested it on 2026-09-24: "very fast".
 
-The stretch from 2026-08-03 to 2026-08-14 was a run of audio-capture bugs, all caused by
-that warm mic, and all now fixed. Two rules came out of it: **never hold a Bluetooth mic
-open** (it pins the headset profile, and the profile flipping mid-take delivers silent
-buffers), re-checked on every rebuild rather than only at startup; and **never trust
-`AVAudioEngine.isRunning`** (it reports "running" while delivering nothing) — liveness is
-now the timestamp of the last buffer that actually arrived, so a dead warm mic rebuilds
-itself on the next key press instead of needing an app restart.
-
-As of 2026-08-14 the app is running clean on AirPods with the Bluetooth guard active. The
-self-healing path has not yet been seen firing on a genuinely dead engine in the wild —
-that is what the next few days of real use will tell us.
+Earlier audio-capture rules still hold: **never hold a Bluetooth mic open**, and **never
+trust `AVAudioEngine.isRunning`** (liveness is the last buffer that actually arrived).
 
 ## Open tasks / next steps
 
-- [ ] **Confirm the first dictation after a long break is now ~1 to 2 s, not 10 to 17 s.** Check with:
-      `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep 'whisper:'`
-      If slow ones remain, the next lever is a quantized large-v3-turbo (q5/q8, about half the RAM).
-- [ ] **← NEXT: use it normally for a few days and confirm it no longer dies after a long idle.** The two lines that matter, either of which means the self-heal worked: `warm mic was not delivering audio, rebuilding it` and `is Bluetooth — releasing the warm mic`. Check with:
-      `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep -E 'rebuilding|WARNING|Bluetooth'`
-      If a dictation still comes back empty, capture that window — the log now says which of the two failed.
+- [ ] **← NEXT: use it normally for a few days.** Watch two things in the logs:
+      first-after-idle `whisper:` times should stay around 1 to 2 s, and a dead warm mic
+      should self-heal (`warm mic was not delivering audio, rebuilding it`).
+      `/usr/bin/log show --predicate 'subsystem == "com.diebrudie.wisprown"' --last 12h --style compact | grep -E 'whisper:|rebuilding|WARNING|Bluetooth'`
+- [ ] Isabel: next time the rebuild keychain dialog appears ("codesign wants to sign using key WisprOwn Dev"), click **Always Allow** so rebuilds stop asking for the password
+- [ ] Optional, offered: evaluate a quantized large-v3-turbo (q5/q8) against `specs/eval-sentences.md`. Only a RAM saving (~1.8 GB pinned → ~0.6 to 0.9 GB), not a speed fix; switch only if DE/ES/names accuracy holds
 - [ ] Isabel adds her friend as a GitHub collaborator (she wants to do this herself)
-- [ ] `Scripts/make-signing-cert.sh` is still unverified on a Mac that has no certificate yet — the friend's install is the real test
+- [ ] `Scripts/make-signing-cert.sh` is still unverified on a Mac that has no certificate yet; the friend's install is the real test
 - [ ] Backlog, unstarted (`specs/12-future-features.md`): §A interactive bar hover menu, §B streaming / paste latency, §D UI localization DE/ES, §H dictating over playing audio
-- [ ] Offered, not built: a manual "restart audio" button (skipped on purpose — the self-heal makes it dead weight, but she floated it and can still have it); idle-release of the warm mic after N minutes; month labels on the activity calendar; date-range picker; CSV export
+- [ ] Offered, not built: a manual "restart audio" button; idle-release of the warm mic after N minutes; month labels on the activity calendar; date-range picker; CSV export
+- Decided against (2026-09-24): auto-update (Sparkle). The app has no updater; installs only change on rebuild. Revisit together with Developer ID + notarization if the repo goes public.
 
 ## Key locations
 
@@ -58,6 +49,10 @@ residency set wired only 3 min after last use (`GGML_METAL_RESIDENCY_KEEP_ALIVE_
 default 180). After that macOS (16 GB, ~4 GB swap in use) pages the 1.6 GB weights out.
 Fix: set the keep-alive to 30 days in `Transcriber.load`. Cost: ~1.8 GB stays pinned.
 The warm mic never could have fixed this: the delay was never in the mic.
+Isabel tested it the same day: "very fast". Also explained: a quantized model is a RAM
+trade-off, not a speed fix (offered an eval, not done); the app has no auto-update and she
+does not want one; rebuild password prompts are the keychain guarding the signing key
+(`codesign --deep` signs several items, one prompt each), fix is "Always Allow" once.
 
 ### 2026-08-14 — the warm mic dies after a long idle
 
