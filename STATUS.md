@@ -22,7 +22,7 @@ trust `AVAudioEngine.isRunning`** (liveness is the last buffer that actually arr
 - [ ] Isabel: next time the rebuild keychain dialog appears ("codesign wants to sign using key WisprOwn Dev"), click **Always Allow** so rebuilds stop asking for the password
 - [ ] Optional, offered: evaluate a quantized large-v3-turbo (q5/q8) against `specs/eval-sentences.md`. Only a RAM saving (~1.8 GB pinned → ~0.6 to 0.9 GB), not a speed fix; switch only if DE/ES/names accuracy holds
 - [ ] Isabel adds her friend as a GitHub collaborator (she wants to do this herself)
-- [ ] `Scripts/make-signing-cert.sh` is still unverified on a Mac that has no certificate yet; the friend's install is the real test
+- [ ] The friend's install is the first real test of two unverified README steps: `Scripts/make-signing-cert.sh` on a Mac with no certificate, and building with only the Command Line Tools (Isabel has full Xcode)
 - [ ] Backlog, unstarted (`specs/12-future-features.md`): §A interactive bar hover menu, §B streaming / paste latency, §D UI localization DE/ES, §H dictating over playing audio
 - [ ] Offered, not built: a manual "restart audio" button; idle-release of the warm mic after N minutes; month labels on the activity calendar; date-range picker; CSV export
 - Decided against (2026-09-24): auto-update (Sparkle). The app has no updater; installs only change on rebuild. Revisit together with Developer ID + notarization if the repo goes public.
@@ -53,6 +53,8 @@ Isabel tested it the same day: "very fast". Also explained: a quantized model is
 trade-off, not a speed fix (offered an eval, not done); the app has no auto-update and she
 does not want one; rebuild password prompts are the keychain guarding the signing key
 (`codesign --deep` signs several items, one prompt each), fix is "Always Allow" once.
+README audited against the code for a fresh install: accurate, plus two additions
+(`0b2d4d9`): 16 GB RAM recommended (~2 GB now stays loaded) and private-repo access needed.
 
 ### 2026-08-14 — the warm mic dies after a long idle
 
