@@ -52,6 +52,8 @@ Your audio is processed in memory and never written to disk or sent anywhere.
 - **macOS 14** (Sonoma) or newer
 - **Xcode command line tools** — install with `xcode-select --install`
 - **~4 GB free disk** — the speech models are downloaded on first launch
+- **16 GB RAM recommended** — the speech model stays loaded (~2 GB) so every dictation is instant, even after hours idle
+- **Repository access** — the repo is currently private: you need to be added as a collaborator and signed in to GitHub (`gh auth login`, or an SSH key) for the clone to work
 
 ### Steps
 
